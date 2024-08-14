@@ -1,119 +1,92 @@
-############### INFO ###############
+import functions.database.insert as insert
+import functions.database.utils as utils
 
-# 1. 저장된 링크를 한 줄씩 불러옴
-# 2. 포트 번호 삭제
-# 3. 데이터베이스에 없다면 저장
-# 4. 루트 도메인이라면 그렇다고 표시 (아니라면 Default 값으로)
-# 5. 해당되는 루트 도메인과 연결
+def select_auto_increment(cur):
+    query = ''' 
+        SELECT AUTO_INCREMENT
+        FROM information_schema.tables
+        WHERE table_name = 'res_data_label';
+        '''
+    cur.execute(query)
+    id = cur.fetchone()
 
-############### FUNCTION ###############
-def rootdomain(cur):
-    cur.execute("SELECT sub_url FROM domain_sub") #수정필요
-    datas = cur.fetchall()
+    return id
 
-    notfoundcount = 0
-    s = set()
-    for data in datas:
-        line = data[0]
-        print("DATA: " + line)
+def company(comp_label):
+    with utils.database_connect() as conn:
+        with conn.cursor as cur:
+            cur.execute('''
+                        INSERT IGNORE INTO res_data_label(label)
+                        VALUE("''' + comp_label + '");')
+            conn.commit()
 
-        if ":" in line:
-            tmp = line.split(":")
-            line = tmp[0] # 포트 번호 삭제
+            cur.execute('SELECT id FROM res_data_label WHERE label="' + comp_label + '";')
+            id = cur.fetchone()
 
-        found = 0
-        tmp = line.split(".")
+    return id
 
-        # tmp에서 com이 나오는 인덱스 번호를 found에 저장함
-        if tmp.count('com') == 1:
-            found = tmp.index('com')
-            found = found - 1
+def rootdomain(domain):
+    if ":" in domain: tmp = domain.split(":")
+    domain = tmp[0] # 포트 번호 삭제
 
-            tmplist = tmp[found:]
-            tmpstr = ".".join(tmplist)
-            s.add(tmpstr)
-        elif (tmp.count('kr') == 1):
-            if tmp.count('or') == 1:
-                found = tmp.index('or')
-                found = found - 1
+    found = 0
+    tmp = domain.split(".")
 
-                tmplist = tmp[found:]
-                tmpstr = ".".join(tmplist)
-                s.add(tmpstr)
-            elif tmp.count('co') == 1:
-                found = tmp.index('co')
-                found = found - 1
+    if tmp.count('com') == 1: found = tmp.index('com')
 
-                tmplist = tmp[found:]
-                tmpstr = ".".join(tmplist)
-                s.add(tmpstr)
-            else:
-                found = tmp.index('kr')
-                found = found - 1
+    elif (tmp.count('kr') == 1):
+        if tmp.count('or') == 1: found = tmp.index('or')
+        elif tmp.count('co') == 1: found = tmp.index('co')
+        else: found = tmp.index('kr')
 
-                tmplist = tmp[found:]
-                tmpstr = ".".join(tmplist)
-                s.add(tmpstr)
-        elif tmp.count('jp') == 1:
-            found = tmp.index('jp')
-            found = found - 1
+    elif tmp.count('jp') == 1: found = tmp.index('jp')
 
-            tmplist = tmp[found:]
-            tmpstr = ".".join(tmplist)
-            s.add(tmpstr)
-        elif tmp.count('net') == 1:
-            found = tmp.index('net')
-            found = found - 1
+    elif tmp.count('net') == 1: found = tmp.index('net')
 
-            tmplist = tmp[found:]
-            tmpstr = ".".join(tmplist)
-            s.add(tmpstr)
-        elif ((tmp.count('co') == 1) and (tmp.count('uk') == 1)):
-            found = tmp.index('co')
-            found = found - 1
+    elif ((tmp.count('co') == 1) and (tmp.count('uk') == 1)): found = tmp.index('co')
 
-            tmplist = tmp[found:]
-            tmpstr = ".".join(tmplist)
-            s.add(tmpstr)
-        elif tmp.count('ca') == 1:
-            found = tmp.index('ca')
-            found = found - 1
+    elif tmp.count('ca') == 1: found = tmp.index('ca')
 
-            tmplist = tmp[found:]
-            tmpstr = ".".join(tmplist)
-            s.add(tmpstr)
-        elif tmp.count('uz') == 1:
-            found = tmp.index('uz')
-            found = found - 1
+    elif tmp.count('uz') == 1: found = tmp.index('uz')
 
-            tmplist = tmp[found:]
-            tmpstr = ".".join(tmplist)
-            s.add(tmpstr)
-        elif tmp.count('in') == 1:
-            found = tmp.index('in')
-            found = found - 1
+    elif tmp.count('in') == 1: found = tmp.index('in')
 
-            tmplist = tmp[found:]
-            tmpstr = ".".join(tmplist)
-            s.add(tmpstr)
-        elif tmp.count('cn') == 1:
-            found = tmp.index('cn')
-            found = found - 1
+    elif tmp.count('cn') == 1: found = tmp.index('cn')
 
-            tmplist = tmp[found:]
-            tmpstr = ".".join(tmplist)
-            s.add(tmpstr)
-        elif ((tmp.count('co') == 1) and (tmp.count('uk') == 1)):
-            found = tmp.index('co')
-            found = found - 1
+    elif ((tmp.count('co') == 1) and (tmp.count('uk') == 1)): found = tmp.index('co')
 
-            tmplist = tmp[found:]
-            tmpstr = ".".join(tmplist)
-            s.add(tmpstr)
-        else:
-            notfoundcount = notfoundcount + 1
+    found = found - 1
+    tmp_list = tmp[found:]
 
-    for line in s:
-        cur.execute("INSERT IGNORE INTO domain_root(root_url) VALUES('{0}')".format(line))
+    result = ".".join(tmp_list)
+    return result
+
+def root_keys(comp_id, key_list):
+    root_key_set = set()
+
+    for key in key_list:
+        root_key_set.update(rootdomain(key))
     
+    root_key_list = list(root_key_set)
+    root_key_dict = dict()
+
+    conn = utils.database_connect()
+    cur = conn.cursor()
+
+    id = select_auto_increment(cur)
+    for i, key in enumerate(root_key_list):
+        cur.execute('INSERT INTO res_data_label(label) VALUE("' + key + '")')
+        conn.commit()
+
+        insert.into_tree(id + i, comp_id)
+        root_key_dict[key] = id + i
+
+    cur.close()
+    conn.close()
+
+    # root_key_dict를 반환
+    # → ancestor의 id를 확인한 후 subdomain으로 넘어감
+    return root_key_dict
+
+def sub_keys(root_key_dict):
     return 0

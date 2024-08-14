@@ -1,5 +1,11 @@
 from flask import Flask
-DCBA_API = Flask(__name__)
+from flask_restx import Api
 
-from main.application import crawler
-DCBA_API.register_blueprint(crawler)
+app = Flask(__name__)
+api = Api(app)
+
+from main.crawler import crawler
+from main.keys import keys
+
+api.add_namespace(crawler)
+api.add_namespace(keys)
