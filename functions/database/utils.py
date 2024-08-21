@@ -12,7 +12,7 @@ def create_task_list(task):
     task_list = []
     with database_connect() as conn:
         with conn.cursor() as cur:
-            url = cur.execute("SELECT search_key FROM search_key WHERE {0}='N'".format(task))
+            url = cur.execute("SELECT req.key FROM req_keys req WHERE {0}='notstarted'".format(task))
 
             while url:
                 if str(type(url)) == "<class 'tuple'>":
@@ -22,15 +22,22 @@ def create_task_list(task):
     return task_list
 
 def save_to_database(se, sd, title, link, content, target):
-    if "bing.com" in link: return 0
+    if "bing" in link: return 0
 
     with database_connect() as conn:
         with conn.cursor() as cur:
+            query = 'INSERT IGNORE INTO res_data_label (label) VALUE ("{0}")'.format(link)
+            cur.execute(query)
+            conn.commit()
+            
+            line = sd
+            if ":" in line: line = line.split(":")[0]
+
             query = '''
                     INSERT IGNORE INTO res_data_content
                     (searchengine, subdomain, res_title, res_url, res_content, tags)
                     VALUES('{0}', '{1}', '{2}', '{3}', '{4}', 
-                    '''.format(se, sd, title, link, content)
+                    '''.format(se, line, title, link, content)
             
             if target == "github":
                 query = query + "'git');"
@@ -38,19 +45,19 @@ def save_to_database(se, sd, title, link, content, target):
                 query = query + "'');"
 
             cur.execute(query)
-        conn.commit()
+            conn.commit()
     return 0
 
 def update_status(se, url, status, git=False):
     with database_connect() as conn:
         with conn.cursor() as cur:
-            query = 'UPDATE req_keys SET ' + se + '_'
+            query = 'UPDATE req_keys req SET ' + se + '_'
             if git:
                     query += 'git'
             else:
                     query += 'def'
-            query += '= "' + status + '"'
-            query += 'WHERE key = "' + url + '";'
+            query += '= "' + status + '" '
+            query += 'WHERE req.key = "' + url + '";'
             
             cur.execute(query)
         conn.commit()

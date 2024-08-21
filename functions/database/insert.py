@@ -18,3 +18,21 @@ def into_tree(id, parent_id):
                 conn.commit()
             except:
                 conn.rollback()
+
+def subdomain(id, url):
+    with utils.database_connect() as conn:
+        with conn.cursor() as cur:
+            query = f"INSERT IGNORE INTO list_subdomain(id, url) VALUE({id}, '{url}')"
+            cur.execute(query)        
+
+        conn.commit()
+        return 0
+
+def rootdomain(id, url):
+    with utils.database_connect() as conn:
+        with conn.cursor() as cur:
+            query = f"INSERT IGNORE INTO list_rootdomain(id, url) VALUE({id}, '{url}')"
+            cur.execute(query)        
+    
+        conn.commit()
+        return 0

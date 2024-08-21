@@ -3,7 +3,7 @@ from main import *
 import re, io, csv
 import functions.database.update as update
 
-from flask import request
+from flask import request, jsonify, make_response
 from flask_restx import Resource, Namespace
 
 keys = Namespace('keys')
@@ -27,11 +27,19 @@ def check_url(text:str):
     else:        
         return True
 
+def new_response(json_string):
+    response = make_response(json_string)
+    response.headers.add('Access-Control-Allow-Origin', "*")
+    response.headers.add('Access-Control-Allow-Headers', "*")
+    response.headers.add('Access-Control-Allow-Methods', "*")
+
+    return response
+
 @keys.route('/')
 class KeyControl(Resource):
     def get(self):
-        comp = request.args.get("comp")
-        data = request.args.get("data")
+        comp = request.args.get('comp')
+        data = request.args.get('data')
 
         keys = []
         data_list = data.split(",")
@@ -40,20 +48,24 @@ class KeyControl(Resource):
             if check_url(text):
                 keys.append(text)
 
-        comp_id = update.company(comp)
-        root_key_dict = update.root_keys(comp_id, keys)
-        update.sub_keys(root_key_dict)
+        comp_id = update.company_id(comp)
+        update.data_labels(comp_id, keys)
 
-        return {comp: keys}
+        response = new_response(jsonify({"comp": comp, "data": keys}))
+        return response
         
     def post(self):
         comp = request.form['comp']
         data = request.files['data']
 
-        result_data = []
+        keys = []
         data_list = new_csv_list(data)
         for text in data_list:
             if check_url(text):
-                result_data.append(text)
+                keys.append(text)
 
-        return {comp: result_data}
+        comp_id = update.company_id(comp)
+        update.data_labels(comp_id, keys)
+
+        response = new_response(jsonify({"comp": comp, "data": keys}))
+        return response

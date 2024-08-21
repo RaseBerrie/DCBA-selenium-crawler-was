@@ -6,10 +6,10 @@
         "script":"C:\\Program Files\\Common Files\\Oracle\\Java\\javapath\\java.exe",
         "args":
         [
-            "-jar", "C:\\Users\\itf\\Documents\\selenium-search\\assets\\selenium-server-4.20.0.jar", "standalone",
+            "-jar", "C:\\Users\\itf\\Documents\\selenium-search-api\\assets\\selenium-server-4.20.0.jar", "standalone",
             "--log-level", "warning",
             "--session-timeout", "60",
-            "--log", "C:\\Users\\itf\\Documents\\selenium-search\\logs\\selenium_error.log",
+            "--log", "C:\\Users\\itf\\Documents\\selenium-search-api\\logs\\selenium_error.log",
             "--structured-logs", "true",
             "--tracing", "false"
         ]

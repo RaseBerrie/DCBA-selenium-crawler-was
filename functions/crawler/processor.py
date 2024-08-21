@@ -37,9 +37,7 @@ def process_function(func, items, process_count):
 
 ############### MAIN ###############
 
-def process_start(json_data):
-    args = json.loads(json_data)
-    
+def process_start(args):
     def start_searcher(key):
         if args[key]:
             ls = utils.create_task_list(key)
@@ -52,8 +50,8 @@ def process_start(json_data):
             elif key == "b_git":
                 p = Process(target=process_function, args=(wrapper_b_git, ls, 2))
 
-        p.start()
-        return 0
+            p.start()
+            return 0
 
     for key in args.keys():
         start_searcher(key)

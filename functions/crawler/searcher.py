@@ -7,10 +7,12 @@ from functions.database.utils import save_to_database, update_status
 import os, base64, random, time, logging, traceback
 
 PAUSE_SEC = random.randrange(1,3)
-def ERROR_CONTROL(driver, originalurl, e, isexit=False):
+def ERROR_CONTROL(driver, originalurl, e, isgit=False, isexit=False):
   if isexit:
     print("[!] NO SUCH ELEMENT EXCEPTION in [{0}]: Bot detect alert".format(originalurl))
     driver.quit()
+
+    update_status("g", originalurl, "notstarted", isgit)
     os._exit(1)
   else:
     print("[!] ERROR in [{0}]:".format(originalurl), e)
@@ -88,23 +90,24 @@ def scrolltoend_bing(driver):
 ############### SEARCHER ###############
 
 def google_search(originalurl, target="default"):
-  logging.basicConfig(filename='C:\\Users\\itf\\Documents\\selenium-search\\logs\\crawler_error.log', level=logging.WARNING, encoding="utf-8")
+  logging.basicConfig(filename='C:\\Users\\itf\\Documents\\selenium-search-api\\logs\\crawler_error.log', level=logging.WARNING, encoding="utf-8")
   driver = driver_setup('http://127.0.0.1:4444/wd/hub')
+  isgit = False
 
-  # 깃허브 검색 여부 설정
   if target == "github":
+    isgit = True
     searchkey = "site:github.com" + originalurl
-    update_status('g', originalurl, 'processing', git=True)
   else:
     searchkey = "site:" + originalurl
-    update_status('g', originalurl, 'processing')
+
+  update_status('g', originalurl, 'processing', isgit)
 
   driver.get("https://www.google.com/")
   time.sleep(PAUSE_SEC * 3)
 
   # 캡챠 발생 시 탈출
   try: searchfield = driver.find_element(By.XPATH, '//*[@id="APjFqb"]')
-  except NoSuchElementException as e: ERROR_CONTROL(driver, originalurl, e, isexit=True)
+  except NoSuchElementException as e: ERROR_CONTROL(driver, originalurl, e, isgit, isexit=True)
   except Exception as e: ERROR_CONTROL(driver, originalurl, e)
   
   # 검색어 전송 후 검색 진행
@@ -118,7 +121,7 @@ def google_search(originalurl, target="default"):
   while True:
     # 캡챠 발생 시 탈출
     try: resultfield = driver.find_element(By.ID, 'search')
-    except NoSuchElementException as e: ERROR_CONTROL(driver, originalurl, e, isexit=True)
+    except NoSuchElementException as e: ERROR_CONTROL(driver, originalurl, e, isgit, isexit=True)
     except Exception as e: ERROR_CONTROL(driver, originalurl, e)
     
     # search 안에서 검색
@@ -184,26 +187,24 @@ def google_search(originalurl, target="default"):
     except: break
   driver.quit()
 
-  if target == "github":
-    update_status('g', originalurl, 'finished', git=True)
-  else:
-    update_status('g', originalurl, 'finished')
-
+  update_status('g', originalurl, 'finished', isgit)
   print("done!")
 
 def bing_search(originalurl, target="default"):
-  logging.basicConfig(filename='C:\\Users\\itf\\Documents\\selenium-search\\logs\\crawler_error.log', level=logging.WARNING, encoding="utf-8")
+  logging.basicConfig(filename='C:\\Users\\itf\\Documents\\selenium-search-api\\logs\\crawler_error.log', level=logging.WARNING, encoding="utf-8")
   driver = driver_setup('http://127.0.0.1:4444/wd/hub')
+  isgit = False
 
   searchkey = ''
   nextpage_link = ''
 
   if target == "github":
+    isgit = True
     searchkey = "site:github.com" + originalurl
-    update_status('b', originalurl, 'processing', git=True)
   else:
     searchkey = "site:" + originalurl
-    update_status('b', originalurl, 'processing')
+    
+  update_status('b', originalurl, 'processing', isgit)
 
   driver.get("https://www.bing.com/search")
 
@@ -283,9 +284,5 @@ def bing_search(originalurl, target="default"):
 
   driver.quit()
 
-  if target == "github":
-    update_status('b', originalurl, 'finished', git=True)
-  else:
-    update_status('b', originalurl, 'finished')
-
+  update_status('b', originalurl, 'finished', isgit)
   print("done!")
