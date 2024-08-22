@@ -2,6 +2,7 @@ from main import *
 
 import re, io, csv
 import functions.database.update as update
+import functions.database.insert as insert
 
 from flask import request, jsonify, make_response
 from flask_restx import Resource, Namespace
@@ -48,6 +49,8 @@ class KeyControl(Resource):
             if check_url(text):
                 keys.append(text)
 
+        insert.into_keys(keys)
+
         comp_id = update.company_id(comp)
         update.data_labels(comp_id, keys)
 
@@ -63,6 +66,8 @@ class KeyControl(Resource):
         for text in data_list:
             if check_url(text):
                 keys.append(text)
+
+        insert.into_keys(keys)
 
         comp_id = update.company_id(comp)
         update.data_labels(comp_id, keys)

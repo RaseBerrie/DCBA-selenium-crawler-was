@@ -67,10 +67,10 @@ def wrapper_b_def(item):
     searcher.bing_search(item)
 
 def wrapper_g_git(item):
-    searcher.google_search(item, "github")
+    searcher.google_search(item, True)
 
 def wrapper_b_git(item):
-    searcher.bing_search(item, "github")
+    searcher.bing_search(item, True)
 
 def worker_function(func, items):
     for item in items: func(item)

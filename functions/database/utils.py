@@ -21,7 +21,7 @@ def create_task_list(task):
 
     return task_list
 
-def save_to_database(se, sd, title, link, content, target):
+def save_to_database(se, sd, title, link, content, isgit):
     if "bing" in link: return 0
 
     with database_connect() as conn:
@@ -39,10 +39,8 @@ def save_to_database(se, sd, title, link, content, target):
                     VALUES('{0}', '{1}', '{2}', '{3}', '{4}', 
                     '''.format(se, line, title, link, content)
             
-            if target == "github":
-                query = query + "'git');"
-            else:
-                query = query + "'');"
+            if isgit: query = query + "'git');"
+            else: query = query + "'');"
 
             cur.execute(query)
             conn.commit()

@@ -1,5 +1,13 @@
 import functions.database.utils as utils
 
+def into_keys(keys):
+    with utils.database_connect() as conn:
+        with conn.cursor() as cur:
+            for key in keys:
+                query = f'INSERT IGNORE INTO req_keys(req_keys.key) VALUES ("{key}");'
+                cur.execute(query)
+            conn.commit()
+
 def into_root(id):
     with utils.database_connect() as conn:
         with conn.cursor() as cur:
@@ -33,6 +41,6 @@ def rootdomain(id, url):
         with conn.cursor() as cur:
             query = f"INSERT IGNORE INTO list_rootdomain(id, url) VALUE({id}, '{url}')"
             cur.execute(query)        
-    
+
         conn.commit()
         return 0
