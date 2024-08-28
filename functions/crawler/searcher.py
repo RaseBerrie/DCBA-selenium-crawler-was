@@ -11,15 +11,20 @@ import os, base64, random, time, logging, traceback
 # ==                    UTILS                        ==
 # =====================================================
 
+
 PAUSE_SEC = random.randrange(1,3)
 
-def ERROR_CONTROL(driver, originalurl, e, isgit=False, isexit=False):
+def ERROR_CONTROL(driver, originalurl, e, isgit=False, isexit=False, bing=False):
     if isexit:
         print("[!] NO SUCH ELEMENT EXCEPTION in [{0}]: Bot detect alert".format(originalurl))
         driver.quit()
 
-        update_status("g", originalurl, "notstarted", isgit)
-        os._exit(1) #→ 프로세스 완전히 종료
+        if bing:
+            update_status("b", originalurl, "notstarted", isgit)
+            return 0
+        else:
+            update_status("g", originalurl, "notstarted", isgit)
+            os._exit(1) #→ 프로세스 완전히 종료
     else:
         print("[!] ERROR in [{0}]:".format(originalurl), e)
         logging.error(traceback.format_exc()) #→ 로깅 후 계속 진행
@@ -103,6 +108,7 @@ def scrolltoend_bing(driver):
 
 
 def google_search(originalurl, isgit=False):
+
     logging.basicConfig(filename='C:\\Users\\itf\\Documents\\selenium-search-api\\logs\\crawler_error.log', level=logging.WARNING, encoding="utf-8")
     driver = driver_setup('http://127.0.0.1:4444/wd/hub')
 
@@ -131,7 +137,8 @@ def google_search(originalurl, isgit=False):
 
     while True:
         try: resultfield = driver.find_element(By.ID, 'search')
-        except NoSuchElementException as e: ERROR_CONTROL(driver, originalurl, e, isgit, isexit=True)
+        except NoSuchElementException as e:
+            ERROR_CONTROL(driver, originalurl, e, isgit, isexit=True)
         except Exception as e: ERROR_CONTROL(driver, originalurl, e)
         
         # === 검색 섹션: search ===
@@ -145,18 +152,22 @@ def google_search(originalurl, isgit=False):
                 linkpath = titlefield.find_element(By.XPATH, '..')
                 res_link.append(linkpath.get_attribute('href'))
 
+            # === 제목에서 특수문자 삭제 ===
+
             idx = len(res_title)
             for i in range(idx):
                 res_title_alt = res_title[i].text
                 res_title_alt = res_title_alt.replace("'", "\\'")
 
+                # === 컨텐츠에서 특수문자 삭제 ===
+
                 if i < len(res_content):
                     res_content_alt = res_content[i].text
-                    res_content_alt = res_content_alt.replace("'", "\\'")
-                    res_content_alt = res_content_alt.replace('"', '\\"')
-                    res_content_alt = res_content_alt.replace("%", "\\%")
-                else:
-                    res_content_alt = ""
+                    res_content_alt = res_content_alt.translate(
+                        str.maketrans({"'": "\\'",
+                                       '"': '\\"',
+                                       '%': '\\%'}))
+                else: res_content_alt = ''
                 
                 tmp = res_link[i].split('/')
                 url = tmp[2]
@@ -176,10 +187,14 @@ def google_search(originalurl, isgit=False):
                 linkpath = titlefield.find_element(By.XPATH, '..')
                 res_link.append(linkpath.get_attribute('href'))
 
+            # === 제목에서 특수문자 삭제 ===
+
             idx = len(res_title) - 2 # → 제외된 2건: <h3 aria_hidden="true"> <h3>다시 시도</h3> (항상 제외됨)
             for i in range(idx):
                 res_title_alt = res_title[i].text
                 res_title_alt = res_title_alt.replace("'", "\\'")
+
+                # === 컨텐츠에서 특수문자 삭제 ===
 
                 if i < len(res_content):
                     res_content_alt = res_content[i].text
@@ -215,31 +230,42 @@ def google_search(originalurl, isgit=False):
 
 
 def bing_search(originalurl, isgit=False):
+    
     logging.basicConfig(filename='C:\\Users\\itf\\Documents\\selenium-search-api\\logs\\crawler_error.log', level=logging.WARNING, encoding="utf-8")
     driver = driver_setup('http://127.0.0.1:4444/wd/hub')
     
     searchkey = ''
     nextpage_link = ''
 
-    if isgit: searchkey = "site:github.com" + originalurl
+    if isgit: searchkey = "site:github.com " + originalurl
     else: searchkey = "site:" + originalurl
-      
+
     update_status('b', originalurl, 'processing', isgit)
     driver.get("https://www.bing.com/search")
 
+    # === 검색어 전송 후 검색 진행 ===
+
     time.sleep(PAUSE_SEC)
-    searchfield = driver.find_element(By.XPATH, '//*[@id="sb_form_q"]')
+    try:
+        searchfield = driver.find_element(By.XPATH, '//*[@id="sb_form_q"]')
+    except NoSuchElementException as e:
+        ERROR_CONTROL(driver, originalurl, e, isgit, isexit=True, bing=True)
 
     searchfield.send_keys(searchkey)
     time.sleep(PAUSE_SEC)
     searchfield.send_keys(Keys.ENTER)
     
     while True:
+        time.sleep(PAUSE_SEC * 2)
         scrolltoend_bing(driver)
-        time.sleep(PAUSE_SEC)
 
-        scrolltoend_bing(driver)    
-        resultfield = driver.find_element(By.ID, 'b_results')
+        # === 검색 섹션: b_results ===
+
+        try:
+            resultfield = driver.find_element(By.ID, 'b_results')
+        except NoSuchElementException as e:
+            ERROR_CONTROL(driver, originalurl, e, isgit, isexit=True, bing=True)
+        
         try:
             res_content = resultfield.find_elements(By.TAG_NAME, 'p')
             titlefield = resultfield.find_elements(By.XPATH, '//h2//a')
@@ -255,6 +281,8 @@ def bing_search(originalurl, isgit=False):
                 res_title_alt = res_title[i]
                 res_title_alt = res_title_alt.replace("'", "\\'")
 
+                # === 컨텐츠에서 날짜 정보/특수문자 삭제 ===
+
                 if i < len(res_content):
                     res_content_alt = res_content[i].text
                     res_content_alt = res_content_alt.translate(
@@ -263,26 +291,30 @@ def bing_search(originalurl, isgit=False):
                                        '%': '\\%'}))
 
                     index = res_content_alt.find("일 · ")
-                    
                     if index > 0:
                         index = index + 3
                         res_content_alt = res_content_alt[index:]
-                        
+
                 else: res_content_alt = ''
+
+                # === 링크에서 특수문자 삭제 ===
 
                 res_link_alt = res_link[i]
                 res_link_alt = res_link_alt.translate(
                     str.maketrans({"'": "\\'",
                                    '"': '\\"',
-                                   '%': '\\%',
-                                   '_': '\\_'}))
+                                   '%': '\\%'}))
+
+                # === BASE64 인코딩 해제 후 저장 ===
 
                 if "aHR0c" in res_link_alt:
-                    tmp = "aHR0c" + res_link_alt.split("aHR0c")
+                    tmp = "aHR0c" + res_link_alt.split("aHR0c")[1]
                     tmp_b64 = tmp.split('&')[0]
 
                     try: res_link_alt = decode_base64(tmp_b64)
-                    except Exception as e: ERROR_CONTROL(driver, tmp_b64, e, isexit=True)
+                    except Exception as e:
+                        print(f"Base64 Padding Problem: {tmp_b64}")
+                        continue
 
                 tmp = res_link_alt.split('/')
                 if isgit: url = originalurl
@@ -292,6 +324,8 @@ def bing_search(originalurl, isgit=False):
                 except Exception as e: ERROR_CONTROL(driver, res_link_alt, e)
         
         except Exception as e: ERROR_CONTROL(driver, originalurl, e)
+
+        # === 다음 페이지가 있으면 넘어감 ===
 
         time.sleep(PAUSE_SEC)
         try:

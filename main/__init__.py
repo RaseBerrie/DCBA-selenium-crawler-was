@@ -5,7 +5,7 @@ app = Flask(__name__)
 api = Api(app)
 
 from main.crawler import crawler
-from main.keys import keys
+from main.data import data
 
 api.add_namespace(crawler)
-api.add_namespace(keys)
+api.add_namespace(data)

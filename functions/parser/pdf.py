@@ -52,8 +52,9 @@ def pdf_settitle(cur):
 
             if "_" in title:
                 title = title.split("_", 1)[1]
+                res_title = title.replace("+", " ")
 
-        query = f'UPDATE list_file SET title = "%s" WHERE url = "%s";' % (title.replace("+", " "), url)
+        query = r'UPDATE list_file SET title = "%s" WHERE url = "%s";' % (res_title, url)
         try:
             cur.execute(query)
         except Exception as e:
@@ -78,10 +79,10 @@ def find_pdf_metadata(url):
     pdf = pdfplumber.open(pdf_buffer)
 
     metadata = pdf.metadata
-    date = None #metadata["ModDate"]
+    date = None # metadata["ModDate"]
     title = metadata["Title"]
 
-    return date, title#parse_date(date), title
+    return date, title # parse_date(date), title
 
 def find_sublist(nested_list, target):
     # 재귀적으로 모든 단계의 중첩 리스트를 탐색

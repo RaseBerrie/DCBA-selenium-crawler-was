@@ -38,23 +38,30 @@ def process_function(func, items, process_count):
 ############### MAIN ###############
 
 def process_start(args):
-    def start_searcher(key):
+    count = 0
+    for value in args.values():
+        if value: count = count + 1
+
+    if count > 0:
+        count = int(12 / count)
+
+    def start_searcher(key, count):
         if args[key]:
             ls = utils.create_task_list(key)
             if key == "g_def":
-                p = Process(target=process_function, args=(wrapper_g_def, ls, 2))
+                p = Process(target=process_function, args=(wrapper_g_def, ls, count))
             elif key == "b_def":
-                p = Process(target=process_function, args=(wrapper_b_def, ls, 2))
+                p = Process(target=process_function, args=(wrapper_b_def, ls, count))
             elif key == "g_git":
-                p = Process(target=process_function, args=(wrapper_g_git, ls, 2))
+                p = Process(target=process_function, args=(wrapper_g_git, ls, count))
             elif key == "b_git":
-                p = Process(target=process_function, args=(wrapper_b_git, ls, 2))
+                p = Process(target=process_function, args=(wrapper_b_git, ls, count))
 
             p.start()
             return 0
 
     for key in args.keys():
-        start_searcher(key)
+        start_searcher(key, count)
 
     return 0
 
