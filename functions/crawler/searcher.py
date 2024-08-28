@@ -265,6 +265,8 @@ def bing_search(originalurl, isgit=False):
             resultfield = driver.find_element(By.ID, 'b_results')
         except NoSuchElementException as e:
             ERROR_CONTROL(driver, originalurl, e, isgit, isexit=True, bing=True)
+            update_status('b', originalurl, 'notstarted', isgit)
+            return 0
         
         try:
             res_content = resultfield.find_elements(By.TAG_NAME, 'p')
