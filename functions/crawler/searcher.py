@@ -165,8 +165,7 @@ def google_search(originalurl, isgit=False):
                     res_content_alt = res_content[i].text
                     res_content_alt = res_content_alt.translate(
                         str.maketrans({"'": "\\'",
-                                       '"': '\\"',
-                                       '%': '\\%'}))
+                                       '"': '\\"'}))
                 else: res_content_alt = ''
                 
                 tmp = res_link[i].split('/')
@@ -200,8 +199,7 @@ def google_search(originalurl, isgit=False):
                     res_content_alt = res_content[i].text
                     res_content_alt = res_content_alt.translate(
                         str.maketrans({"'": "\\'",
-                                       '"': '\\"',
-                                       '%': '\\%'}))
+                                       '"': '\\"'}))
                 else: res_content_alt = ''
 
                 tmp = res_link[i].split('/')
@@ -289,8 +287,7 @@ def bing_search(originalurl, isgit=False):
                     res_content_alt = res_content[i].text
                     res_content_alt = res_content_alt.translate(
                         str.maketrans({"'": "\\'",
-                                       '"': '\\"',
-                                       '%': '\\%'}))
+                                       '"': '\\"'}))
 
                     index = res_content_alt.find("일 · ")
                     if index > 0:
@@ -304,8 +301,7 @@ def bing_search(originalurl, isgit=False):
                 res_link_alt = res_link[i]
                 res_link_alt = res_link_alt.translate(
                     str.maketrans({"'": "\\'",
-                                   '"': '\\"',
-                                   '%': '\\%'}))
+                                   '"': '\\"'}))
 
                 # === BASE64 인코딩 해제 후 저장 ===
 

@@ -67,15 +67,14 @@ def save_to_database(se, sd, title, link, content, isgit):
             subdomain = sd
             if ":" in subdomain: subdomain = subdomain.split(":")[0]
 
-            query = '''
-                    INSERT INTO res_data
-                    (searchengine, subdomain, res_title, res_url, res_content, tags)
-                    VALUES('{0}', '{1}', '{2}', '{3}', '{4}', 
+            if isgit : query = 'INSERT INTO res_data_git'
+            else: query = 'INSERT INTO res_data_def'
+
+            query = query + '''
+                    (searchengine, subdomain, res_title, res_url, res_content)
+                    VALUES('{0}', '{1}', '{2}', '{3}', '{4}'); 
                     '''.format(se, subdomain, title, link, content)
             
-            if isgit: query = query + "'git');"
-            else: query = query + "'');"
-
             try:
                 cur.execute(query)
                 conn.commit()
@@ -100,7 +99,7 @@ def save_to_database(se, sd, title, link, content, isgit):
                     conn.commit()
 
                 else:
-                    print("ERROR: " + query)
+                    print("ERROR: Error occured in save_to_database() query")
                     pass
     return 0
 
