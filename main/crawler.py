@@ -1,5 +1,6 @@
 from main import *
 from functions.crawler.processor import process_start
+from functions.database.utils import insert_into_keys
 
 import json, io, re, csv
 
@@ -67,6 +68,8 @@ class KeyControl(Resource):
             if check_url(text):
                 keys.append(text)
 
+        insert_into_keys(comp, keys)
+
         response = new_response(jsonify({"comp": comp, "data": keys}))
         return response
         
@@ -79,6 +82,8 @@ class KeyControl(Resource):
         for text in data_list:
             if check_url(text):
                 keys.append(text)
+
+        insert_into_keys(comp, keys)
 
         response = new_response(jsonify({"comp": comp, "data": keys}))
         return response

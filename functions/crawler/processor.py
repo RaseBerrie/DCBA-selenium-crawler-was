@@ -1,7 +1,7 @@
 import functions.crawler.searcher as searcher
 import functions.database.utils as utils
 
-import json, signal
+import signal
 from multiprocessing import Process
 
 ############### PROCESS ###############

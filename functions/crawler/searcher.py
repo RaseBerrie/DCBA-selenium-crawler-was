@@ -112,7 +112,7 @@ def google_search(originalurl, isgit=False):
     logging.basicConfig(filename='C:\\Users\\itf\\Documents\\selenium-search-api\\logs\\crawler_error.log', level=logging.WARNING, encoding="utf-8")
     driver = driver_setup('http://127.0.0.1:4444/wd/hub')
 
-    if isgit: searchkey = "site:github.com" + originalurl
+    if isgit: searchkey = "site:github.com " + originalurl
     else: searchkey = "site:" + originalurl
 
     update_status('g', originalurl, 'processing', isgit)

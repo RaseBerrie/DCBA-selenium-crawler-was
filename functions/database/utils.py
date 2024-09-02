@@ -46,6 +46,38 @@ def database_connect():
                            charset='utf8mb4')
     return conn
 
+def insert_into_keys(comp, keys):
+    root_key_set = set()
+    with database_connect() as conn:
+        with conn.cursor() as cur:
+            query = f"INSERT INTO list_company(company) VALUE('{comp}')"
+            cur.execute(query)
+            conn.commit()
+            
+            for key in keys:
+                root_key_set.add(find_rootdomain(key))
+            
+            root_keys = list(root_key_set)
+            for root_key in root_keys:
+                query = f"INSERT INTO list_rootdomain(company, url) VALUE('{comp}', '{root_key}')"
+                cur.execute(query)
+
+                query = f"INSERT INTO list_subdomain(rootdomain, url, is_root) VALUE('{root_key}', '{root_key}', 1)"
+                cur.execute(query)
+            conn.commit()
+
+            for key in keys:
+                query = f"INSERT IGNORE INTO list_subdomain(rootdomain, url, is_root) VALUE('{root_key}', '{key}', 0)"
+                cur.execute(query)
+            conn.commit()
+
+            for key in keys:
+                query = f"INSERT INTO req_keys(req_keys.key) VALUE('{key}')"
+                cur.execute(query)
+            conn.commit()
+
+    return 0
+
 def create_task_list(task):
     task_list = []
     with database_connect() as conn:
@@ -87,10 +119,10 @@ def save_to_database(se, sd, title, link, content, isgit):
                 elif error_code == 1452:
                     rootdomain = find_rootdomain(subdomain)
                     query_sub = f'''INSERT INTO list_subdomain (rootdomain, url, is_root)
-                    VALUES('{rootdomain}', '{subdomain}','''
+                    VALUES("{rootdomain}", "{subdomain}", '''
 
-                    if rootdomain == subdomain: query_sub += "1"
-                    else: query_sub += "0"
+                    if rootdomain == subdomain: query_sub += "1)"
+                    else: query_sub += "0)"
 
                     cur.execute(query_sub)
                     conn.commit()
