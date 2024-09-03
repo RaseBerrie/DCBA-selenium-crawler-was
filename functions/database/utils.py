@@ -50,39 +50,35 @@ def insert_into_keys(comp, keys):
     root_key_set = set()
     with database_connect() as conn:
         with conn.cursor() as cur:
-            query = f"INSERT INTO list_company(company) VALUE('{comp}')"
+            query = f"INSERT IGNORE INTO list_company(company) VALUE('{comp}')"
             cur.execute(query)
-            conn.commit()
             
             for key in keys:
                 root_key_set.add(find_rootdomain(key))
             
             root_keys = list(root_key_set)
             for root_key in root_keys:
-                query = f"INSERT INTO list_rootdomain(company, url) VALUE('{comp}', '{root_key}')"
+                query = f"INSERT IGNORE INTO list_rootdomain(company, url) VALUE('{comp}', '{root_key}')"
                 cur.execute(query)
 
-                query = f"INSERT INTO list_subdomain(rootdomain, url, is_root) VALUE('{root_key}', '{root_key}', 1)"
+                query = f"INSERT IGNORE INTO list_subdomain(rootdomain, url, is_root) VALUE('{root_key}', '{root_key}', 1)"
                 cur.execute(query)
-            conn.commit()
 
             for key in keys:
                 query = f"INSERT IGNORE INTO list_subdomain(rootdomain, url, is_root) VALUE('{root_key}', '{key}', 0)"
                 cur.execute(query)
-            conn.commit()
 
             for key in keys:
-                query = f"INSERT INTO req_keys(req_keys.key) VALUE('{key}')"
+                query = f"INSERT IGNORE INTO req_keys(req_keys.key) VALUE('{key}')"
                 cur.execute(query)
             conn.commit()
-
     return 0
 
 def create_task_list(task):
     task_list = []
     with database_connect() as conn:
         with conn.cursor() as cur:
-            url = cur.execute("SELECT req.key FROM req_keys req WHERE {0}='notstarted'".format(task))
+            url = cur.execute("SELECT req.key FROM req_keys req WHERE {0}='notstarted' and id > 1290".format(task))
 
             while url:
                 if str(type(url)) == "<class 'tuple'>":
@@ -91,15 +87,18 @@ def create_task_list(task):
 
     return task_list
 
-def save_to_database(se, sd, title, link, content, isgit):
-    if "bing" in link: return 0
+def save_to_database(se, sd, title, link, content,
+                     git=False, original_url=None):
+    
+    if "bing" in link or "github" in sd:
+        return 0
 
     with database_connect() as conn:
         with conn.cursor() as cur:
             subdomain = sd
             if ":" in subdomain: subdomain = subdomain.split(":")[0]
 
-            if isgit : query = 'INSERT INTO res_data_git'
+            if git : query = 'INSERT INTO res_data_git'
             else: query = 'INSERT INTO res_data_def'
 
             query = query + '''
@@ -124,12 +123,27 @@ def save_to_database(se, sd, title, link, content, isgit):
                     if rootdomain == subdomain: query_sub += "1)"
                     else: query_sub += "0)"
 
-                    cur.execute(query_sub)
-                    conn.commit()
+                    try:
+                        cur.execute(query_sub)
+                        cur.execute(query)
+                        
+                        conn.commit()
+                    except:
+                        query_find_comp = f'''SELECT company FROM req_keys req 
+                        JOIN list_subdomain sub ON sub.url = req.key
+                        JOIN list_rootdomain root ON root.url = sub.rootdomain
+                        WHERE req.key = "{original_url}"'''
+                        cur.execute(query_find_comp)
 
-                    cur.execute(query)
-                    conn.commit()
+                        company = cur.fetchone()
+                        query_root = f'''INSERT INTO list_rootdomain (company, url)
+                        VALUES ("{company[0]}", "{rootdomain}")'''
+                        
+                        cur.execute(query_root)
+                        cur.execute(query_sub)
+                        cur.execute(query)
 
+                        conn.commit()
                 else:
                     print("ERROR: Error occured in save_to_database() query")
                     pass

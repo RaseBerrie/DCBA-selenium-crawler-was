@@ -53,8 +53,7 @@ def data_fining_seq_one():
             AND     res_url NOT LIKE '%download%'
             '''
             cur.execute(query)
-            conn.commit()
-
+ 
             # 분류: 파일
             query = r'''
             UPDATE  res_data_def
@@ -63,8 +62,7 @@ def data_fining_seq_one():
             AND     tags = ''
             '''
             cur.execute(query)
-            conn.commit()
-
+ 
             # 파일 태그 업데이트
             query = r'''
             INSERT IGNORE INTO res_tags_file (id, url)
@@ -72,8 +70,8 @@ def data_fining_seq_one():
             WHERE tags = 'file')
             '''
             cur.execute(query)
-            conn.commit()
-
+        
+        conn.commit()
         return 0
 
 def data_fining_seq_two():
@@ -89,8 +87,7 @@ def data_fining_seq_two():
             OR      res_content REGEXP '시스템.메.지|워드프레스');
             '''
             cur.execute(query)
-            conn.commit()
-
+            
             # 분류: 관리자 페이지
             query = r'''
             UPDATE      res_data_def
@@ -101,8 +98,7 @@ def data_fining_seq_two():
             OR          res_content REGEXP '관리자');
             '''
             cur.execute(query)
-            conn.commit()
-
+            
             # 분류: 로그인 페이지
             query = r'''
             UPDATE  res_data_def
@@ -114,8 +110,8 @@ def data_fining_seq_two():
             AND     res_url NOT REGEXP 'regist|password';
             '''
             cur.execute(query)
-            conn.commit()
 
+        conn.commit()
         return 0
 
 def update_filetype():
@@ -129,24 +125,22 @@ def update_filetype():
                 WHERE   url REGEXP '{0}+$';
                 '''.format(filetype)
                 cur.execute(query)
-                conn.commit()
-
+                
             query = r'''
             UPDATE  res_tags_file
             SET     filetype = 'pptx'
             WHERE   url REGEXP 'ppt+$';
             '''
             cur.execute(query)
-            conn.commit()            
-
+            
             query = r'''
             UPDATE      res_tags_file
             SET         filetype = 'others'
             WHERE       filetype = '';
             '''
             cur.execute(query)
-            conn.commit()
-
+            
+        conn.commit()
         return 0
 
 def run():

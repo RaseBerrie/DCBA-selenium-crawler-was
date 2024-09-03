@@ -4,7 +4,7 @@ from functions.database.utils import insert_into_keys
 
 import json, io, re, csv
 
-from flask import request, jsonify, make_response
+from flask import request, jsonify
 from flask_restx import Resource, Namespace
 
 crawler = Namespace('crawler')
@@ -28,32 +28,15 @@ def check_url(text:str):
     else:        
         return True
 
-def new_response(json_string):
-    response = make_response(json_string)
-    response.headers.add('Access-Control-Allow-Origin', "*")
-    response.headers.add('Access-Control-Allow-Headers', "*")
-    response.headers.add('Access-Control-Allow-Methods', "*")
-
-    return response
-
 @crawler.route('/run')
 class StartCrawler(Resource):
     def get(self):
-        callback = request.args.get('callback')
         args = json.loads(request.args.get('args'))
-        
-        process_start(args)
-        response_data = {"status": "success"}
-        
-        # JSONP 응답을 처리하는 부분
-        if callback:
-            response = app.response_class(
-                response=f"{callback}({jsonify(response_data).data.decode('utf-8')})",
-                status=200,
-                mimetype='application/javascript'
-            )
-        else: response = jsonify(response_data)
-        return response
+        try:
+            process_start(args)
+            return jsonify({"status": "success"})
+        except:
+            return jsonify({"status": "fail"})
     
 @crawler.route('/keys')
 class KeyControl(Resource):
@@ -69,9 +52,7 @@ class KeyControl(Resource):
                 keys.append(text)
 
         insert_into_keys(comp, keys)
-
-        response = new_response(jsonify({"comp": comp, "data": keys}))
-        return response
+        return jsonify({"comp": comp, "data": keys})
         
     def post(self):
         comp = request.form['comp']
@@ -84,6 +65,4 @@ class KeyControl(Resource):
                 keys.append(text)
 
         insert_into_keys(comp, keys)
-
-        response = new_response(jsonify({"comp": comp, "data": keys}))
-        return response
+        return jsonify({"comp": comp, "data": keys})
