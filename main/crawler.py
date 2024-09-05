@@ -45,7 +45,7 @@ class KeyControl(Resource):
         data = request.args.get('data')
 
         keys = []
-        data_list = data.split(",")
+        data_list = data.split(r"\n")
         for text in data_list:
             text = text.strip()
             if check_url(text):

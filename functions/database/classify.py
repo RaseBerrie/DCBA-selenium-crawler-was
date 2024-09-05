@@ -66,7 +66,7 @@ def data_fining_seq_one():
             # 파일 태그 업데이트
             query = r'''
             INSERT IGNORE INTO res_tags_file (id, url)
-            (SELECT id, res_url FROM res_data
+            (SELECT id, res_url FROM res_data_def
             WHERE tags = 'file')
             '''
             cur.execute(query)

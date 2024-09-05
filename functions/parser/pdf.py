@@ -1,5 +1,6 @@
 from urllib import parse
 from datetime import datetime, timedelta
+from functions.database import utils
 
 import pdfplumber
 import requests
@@ -25,17 +26,18 @@ def parse_date(date):
     return formatted_date
 
 def pdf_settitle(cur):
-    cur.execute("SELECT url FROM list_file WHERE title is null or title = '' or title = 'notitle' or title = 'untitled' or title like '%무제%' or title like '?dir=%'")
+    cur.execute("SELECT url FROM res_tags_file WHERE title IS NULL")
     datas = cur.fetchall()
 
     for data in datas:
         url = data[0]
 
-        try:
-            date, title = find_pdf_metadata(url)
-        except:
-            data = ""
-            title = ""
+        if ".pdf" in url:
+            try:
+                date, title = find_pdf_metadata(url)
+            except:
+                data = ""
+                title = ""
 
         if title == "":
             pretitle = url.split("/")[-1]
@@ -54,7 +56,7 @@ def pdf_settitle(cur):
                 title = title.split("_", 1)[1]
                 res_title = title.replace("+", " ")
 
-        query = r'UPDATE list_file SET title = "%s" WHERE url = "%s";' % (res_title, url)
+        query = r'UPDATE res_tags_file SET title = "%s" WHERE url = "%s";' % (res_title, url)
         try:
             cur.execute(query)
         except Exception as e:
@@ -62,16 +64,6 @@ def pdf_settitle(cur):
             print(query)
 
             continue
-
-        # if date:
-        #     query = f'UPDATE list_file SET moddate = %s WHERE url = "%s";' % (date, url)
-        #     try:
-        #         cur.execute(query)
-        #     except Exception as e:
-        #         print(e)
-        #         print(query)
-
-        #         continue
 
 def find_pdf_metadata(url):
     response = requests.get(url)
@@ -117,3 +109,8 @@ def pdf_parse_search(url, keyword):
     else:
         page_result = "No result"
     return page_result
+
+def run():
+    with utils.database_connect() as conn:
+        with conn.cursor() as cur:
+            pdf_settitle(cur)

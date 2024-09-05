@@ -1,4 +1,15 @@
-import pymysql
+import pymysql, logging
+
+logging.basicConfig(filename='C:\\Users\\itf\\Documents\\selenium-search-api\\logs\\crawler_error.log',
+                    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.ERROR)
+
+def database_connect():
+    conn = pymysql.connect(host='192.168.6.90',
+                           user='root',
+                           password='root',
+                           db='searchdb',
+                           charset='utf8mb4')
+    return conn
 
 def find_rootdomain(domain):
     if ":" in domain:
@@ -8,43 +19,21 @@ def find_rootdomain(domain):
     found = 0
     tmp = domain.split(".")
 
-    if tmp[-1] == 'com': found = tmp.index('com')
+    tld = tmp[-1]
+    second_level = tmp[-2] if len(tmp) > 1 else ''
 
-    elif tmp[-1] == 'kr':
-        if tmp[-2] == 'or': found = tmp.index('or')
-        elif tmp[-2] == 'co': found = tmp.index('co')
-        elif tmp[-2] == 'ac': found = tmp.index('ac')
-        else: found = tmp.index('kr')
-
-    elif tmp[-1] == 'jp' == 1: found = tmp.index('jp')
-
-    elif tmp[-1] == 'net' == 1: found = tmp.index('net')
-
-    elif ((tmp[-1] == 'co') and (tmp[-2] == 'uk')): found = tmp.index('co')
-
-    elif tmp[-1] == 'ca': found = tmp.index('ca')
-
-    elif tmp[-1] == 'uz': found = tmp.index('uz')
-
-    elif tmp[-1] == 'in': found = tmp.index('in')
-
-    elif tmp[-1] == 'cn': found = tmp.index('cn')
-
-    elif ((tmp[-1] == 'co') and (tmp[-2] == 'uk')): found = tmp.index('co')
+    if tld in ['com', 'jp', 'net', 'ca', 'uz', 'in', 'cn']:
+        found = tmp.index(tld)
+    elif tld == 'kr':
+        found = tmp.index(second_level if second_level in ['or', 'co', 'ac'] else tld)
+    elif tld == 'co' and second_level == 'uk':
+        found = tmp.index('co')
 
     found = found - 1
     tmp_list = tmp[found:]
 
     result = ".".join(tmp_list)
     return result
-
-def database_connect():
-    conn = pymysql.connect(host='192.168.6.90',
-                           user='root',
-                           password='root',
-                           db='searchdb',
-                           charset='utf8mb4')
-    return conn
 
 def insert_into_keys(comp, keys):
     root_key_set = set()
@@ -55,6 +44,9 @@ def insert_into_keys(comp, keys):
             
             for key in keys:
                 root_key_set.add(find_rootdomain(key))
+
+                query = f"INSERT IGNORE INTO req_keys(req_keys.key) VALUE('{key}')"
+                cur.execute(query)
             
             root_keys = list(root_key_set)
             for root_key in root_keys:
@@ -64,27 +56,29 @@ def insert_into_keys(comp, keys):
                 query = f"INSERT IGNORE INTO list_subdomain(rootdomain, url, is_root) VALUE('{root_key}', '{root_key}', 1)"
                 cur.execute(query)
 
-            for key in keys:
-                query = f"INSERT IGNORE INTO list_subdomain(rootdomain, url, is_root) VALUE('{root_key}', '{key}', 0)"
-                cur.execute(query)
+                for key in keys:
+                    if key in root_key:
+                        query = f"INSERT IGNORE INTO list_subdomain(rootdomain, url, is_root) VALUE('{root_key}', '{key}', 0)"
+                        cur.execute(query)
+                    else: continue
 
-            for key in keys:
-                query = f"INSERT IGNORE INTO req_keys(req_keys.key) VALUE('{key}')"
-                cur.execute(query)
             conn.commit()
-    return 0
+            return 0
 
 def create_task_list(task):
     task_list = []
     with database_connect() as conn:
         with conn.cursor() as cur:
-            url = cur.execute("SELECT req.key FROM req_keys req WHERE {0}='notstarted' and id > 1290".format(task))
-
-            while url:
-                if str(type(url)) == "<class 'tuple'>":
-                    task_list.append(url[0])
-                url = cur.fetchone()
-
+            cur.execute("SELECT req.key FROM req_keys req WHERE {0}='notstarted' and id > 1374".format(task))
+            keys = cur.fetchmany(36)
+            
+            for key in keys:
+                task_list.append(key[0])
+            
+            for task_url in task_list:
+                cur.execute("UPDATE req_keys SET {0} = 'processing' WHERE req_keys.key = '{1}'".format(task, task_url))
+            
+            conn.commit()
     return task_list
 
 def save_to_database(se, sd, title, link, content,
@@ -145,7 +139,7 @@ def save_to_database(se, sd, title, link, content,
 
                         conn.commit()
                 else:
-                    print("ERROR: Error occured in save_to_database() query")
+                    logging.error(query) #→ 로깅 후 계속 진행
                     pass
     return 0
 

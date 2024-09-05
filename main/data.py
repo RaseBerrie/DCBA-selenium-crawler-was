@@ -1,6 +1,6 @@
 from main import *
 from functions.database import classify
-from functions.parser.pdf import pdf_settitle
+from functions.parser import pdf
 
 from flask import request, jsonify
 from flask_restx import Resource, Namespace
@@ -14,7 +14,8 @@ class DataClassify(Resource):
         try:
             classify.run()
             response_data = {"status": "success"}
-        except:
+        except Exception as e:
+            print(e)
             response_data = {"status": "errored"}
 
         # JSONP 응답을 처리하는 부분
@@ -32,9 +33,10 @@ class FileControl(Resource):
     def get(self):
         callback = request.args.get('callback')
         try:
-            pdf_settitle()
+            pdf.run()
             response_data = {"status": "success"}
-        except:
+        except Exception as e:
+            print(e)
             response_data = {"status": "errored"}
 
         if callback:

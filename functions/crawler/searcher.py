@@ -4,7 +4,7 @@ from selenium.webdriver.common.by import By
 from selenium.common.exceptions import NoSuchElementException
 
 from functions.database.utils import save_to_database, update_status
-import os, base64, random, time, logging, traceback
+import base64, random, time, logging, traceback
 
 
 # =====================================================
@@ -12,26 +12,11 @@ import os, base64, random, time, logging, traceback
 # =====================================================
 
 
-PAUSE_SEC = random.randrange(1,3)
-
-def ERROR_CONTROL(driver, original_url, e, git=False, isexit=False, bing=False):
-    if isexit:
-        print("[!] NO SUCH ELEMENT EXCEPTION in [{0}]: Bot detect alert".format(original_url))
-        driver.quit()
-
-        if bing:
-            update_status("b", original_url, "notstarted", git)
-        else:
-            update_status("g", original_url, "notstarted", git)
-        
-        os._exit(1)
-    else:
-        print("[!] ERROR in [{0}]:".format(original_url), e)
-        logging.error(traceback.format_exc()) #→ 로깅 후 계속 진행
-        return 0
+PAUSE_SEC = random.randrange(2,5)
+logging.basicConfig(filename='C:\\Users\\itf\\Documents\\selenium-search-api\\logs\\crawler_error.log', level=logging.WARNING, encoding="utf-8")
 
 def decode_base64(s):
-    result = base64.b64decode(s + '====').decode('utf-8')
+    result = base64.urlsafe_b64decode(bytes(s + '====', 'UTF-8')).decode('UTF-8')
     return result
 
 
@@ -108,14 +93,10 @@ def scrolltoend_bing(driver):
 
 
 def google_search(original_url, git=False):
-
-    logging.basicConfig(filename='C:\\Users\\itf\\Documents\\selenium-search-api\\logs\\crawler_error.log', level=logging.WARNING, encoding="utf-8")
     driver = driver_setup('http://127.0.0.1:4444/wd/hub')
 
     if git: searchkey = "site:github.com " + original_url
     else: searchkey = "site:" + original_url
-
-    update_status('g', original_url, 'processing', git)
 
     driver.get("https://www.google.com/")
     time.sleep(PAUSE_SEC * 3)
@@ -123,8 +104,8 @@ def google_search(original_url, git=False):
     # === 캡챠 발생 시 탈출 ===
 
     try: searchfield = driver.find_element(By.XPATH, '//*[@id="APjFqb"]')
-    except NoSuchElementException as e: ERROR_CONTROL(driver, original_url, e, git, isexit=True)
-    except Exception as e: ERROR_CONTROL(driver, original_url, e)
+    except NoSuchElementException: raise ValueError(f"Critical error processing item: {original_url}")
+    except Exception: logging.error(traceback.format_exc())
     
     # === 검색어 전송 후 검색 진행 ===
     
@@ -137,9 +118,8 @@ def google_search(original_url, git=False):
 
     while True:
         try: resultfield = driver.find_element(By.ID, 'search')
-        except NoSuchElementException as e:
-            ERROR_CONTROL(driver, original_url, e, git, isexit=True)
-        except Exception as e: ERROR_CONTROL(driver, original_url, e)
+        except NoSuchElementException: raise ValueError(f"Critical error processing item: {original_url}")
+        except Exception: logging.error(traceback.format_exc())
         
         # === 검색 섹션: search ===
     
@@ -150,14 +130,24 @@ def google_search(original_url, git=False):
             res_link = []
             for titlefield in res_title:
                 linkpath = titlefield.find_element(By.XPATH, '..')
-                res_link.append(linkpath.get_attribute('href'))
+
+                # === 링크에서 특수문자 삭제 ===
+
+                res_link_alt = linkpath.get_attribute('href')
+                res_link_alt = res_link_alt.translate(
+                    str.maketrans({"'": "\\'",
+                                   '"': '\\"'}))
+                
+                res_link.append(res_link_alt)
 
             # === 제목에서 특수문자 삭제 ===
 
             idx = len(res_title)
             for i in range(idx):
                 res_title_alt = res_title[i].text
-                res_title_alt = res_title_alt.replace("'", "\\'")
+                res_title_alt = res_title_alt.translate(
+                    str.maketrans({"'": "\\'",
+                                    '"': '\\"'}))
 
                 # === 컨텐츠에서 특수문자 삭제 ===
 
@@ -173,9 +163,10 @@ def google_search(original_url, git=False):
                 else:
                     tmp = res_link[i].split('/')
                     url = tmp[2]
+
                 save_to_database("G", url, res_title_alt, res_link[i], res_content_alt, git, original_url)
-        
-        except Exception as e: ERROR_CONTROL(driver, original_url, e)
+                
+        except Exception: logging.error(traceback.format_exc())
 
         # === 검색 섹션: botstuff ===
         
@@ -187,7 +178,15 @@ def google_search(original_url, git=False):
             res_link = []
             for titlefield in res_title:
                 linkpath = titlefield.find_element(By.XPATH, '..')
-                res_link.append(linkpath.get_attribute('href'))
+
+                # === 링크에서 특수문자 삭제 ===
+
+                res_link_alt = linkpath.get_attribute('href')
+                res_link_alt = res_link_alt.translate(
+                    str.maketrans({"'": "\\'",
+                                   '"': '\\"'}))
+                
+                res_link.append(res_link_alt)
 
             # === 제목에서 특수문자 삭제 ===
 
@@ -211,8 +210,8 @@ def google_search(original_url, git=False):
                     tmp = res_link[i].split('/')
                     url = tmp[2]
                 save_to_database("G", url, res_title_alt, res_link[i], res_content_alt, git, original_url)
-        
-        except Exception as e: ERROR_CONTROL(driver, original_url, e)
+
+        except Exception: logging.error(traceback.format_exc())
 
         # === 다음 페이지가 있으면 클릭 ===
 
@@ -221,11 +220,7 @@ def google_search(original_url, git=False):
         except: break
 
     driver.quit()
-
-    # === 상태 관리 ===
-
     update_status('g', original_url, 'finished', git)
-    print("done!")
 
 
 # =====================================================
@@ -234,8 +229,6 @@ def google_search(original_url, git=False):
 
 
 def bing_search(original_url, git=False):
-    
-    logging.basicConfig(filename='C:\\Users\\itf\\Documents\\selenium-search-api\\logs\\crawler_error.log', level=logging.WARNING, encoding="utf-8")
     driver = driver_setup('http://127.0.0.1:4444/wd/hub')
     
     searchkey = ''
@@ -244,16 +237,15 @@ def bing_search(original_url, git=False):
     if git: searchkey = "site:github.com " + original_url
     else: searchkey = "site:" + original_url
 
-    update_status('b', original_url, 'processing', git)
     driver.get("https://www.bing.com/search")
 
     # === 검색어 전송 후 검색 진행 ===
 
-    time.sleep(PAUSE_SEC)
+    time.sleep(PAUSE_SEC * 2)
     try:
         searchfield = driver.find_element(By.XPATH, '//*[@id="sb_form_q"]')
-    except NoSuchElementException as e:
-        ERROR_CONTROL(driver, original_url, e, git, isexit=True, bing=True)
+    except NoSuchElementException:
+        raise ValueError(f"Critical error processing item: {original_url}")
 
     searchfield.send_keys(searchkey)
     time.sleep(PAUSE_SEC)
@@ -267,21 +259,18 @@ def bing_search(original_url, git=False):
 
         try:
             resultfield = driver.find_element(By.ID, 'b_results')
-        except NoSuchElementException as e:
-            ERROR_CONTROL(driver, original_url, e, git, isexit=True, bing=True)
-            update_status('b', original_url, 'notstarted', git)
-            return 0
+        except NoSuchElementException:
+            raise ValueError(f"Minor error processing item {original_url}")
         
         try:
             res_content = resultfield.find_elements(By.TAG_NAME, 'p')
             titlefield = resultfield.find_elements(By.XPATH, '//h2//a')
             res_title = []
-            res_link = []
             
             for title in titlefield:
                 res_title.append(title.text)
-                res_link.append(title.get_attribute('href'))
-
+                res_link = title.get_attribute('href')
+                                
             idx = len(res_title)
             for i in range(idx):
                 res_title_alt = res_title[i]
@@ -302,23 +291,21 @@ def bing_search(original_url, git=False):
 
                 else: res_content_alt = ''
 
-                # === 링크에서 특수문자 삭제 ===
-
-                res_link_alt = res_link[i]
-                res_link_alt = res_link_alt.translate(
-                    str.maketrans({"'": "\\'",
-                                   '"': '\\"'}))
-
                 # === BASE64 인코딩 해제 후 저장 ===
 
-                if "aHR0c" in res_link_alt:
-                    tmp = "aHR0c" + res_link_alt.split("aHR0c")[1]
+                if "aHR0c" in res_link:
+                    tmp = "aHR0c" + res_link.split("aHR0c")[1]
                     tmp_b64 = tmp.split('&')[0]
 
-                    try: res_link_alt = decode_base64(tmp_b64)
-                    except Exception as e:
-                        print(f"Base64 Padding Problem: {tmp_b64}")
-                        continue
+                    try: res_link = decode_base64(tmp_b64)
+                    except Exception:
+                        logging.error("BASE64 Padding error :" + tmp_b64)
+
+                # === BASE64 처리 끝난 링크에서 특수문자 삭제 ===
+
+                res_link_alt = res_link.translate(
+                str.maketrans({"'": "\\'",
+                               '"': '\\"'}))
 
                 if git:
                     url = original_url
@@ -326,9 +313,9 @@ def bing_search(original_url, git=False):
                     tmp = res_link_alt.split('/')
                     url = tmp[2]
                 try: save_to_database("B", url, res_title_alt, res_link_alt, res_content_alt[1:], git, original_url)
-                except Exception as e: ERROR_CONTROL(driver, res_link_alt, e)
+                except: logging.error(traceback.format_exc())
         
-        except Exception as e: ERROR_CONTROL(driver, original_url, e)
+        except: logging.error(traceback.format_exc())
 
         # === 다음 페이지가 있으면 넘어감 ===
 
@@ -338,7 +325,7 @@ def bing_search(original_url, git=False):
             tmp_link = nextpage.get_attribute('href')
 
             if nextpage_link == tmp_link:
-                ERROR_CONTROL(driver, original_url, "ERROR", isexit=True)
+                raise ValueError(f"Critical error processing item: {original_url}")
             else:
                 nextpage_link = tmp_link
                 driver.get(nextpage_link)
@@ -346,6 +333,4 @@ def bing_search(original_url, git=False):
         except: break
 
     driver.quit()
-
     update_status('b', original_url, 'finished', git)
-    print("done!")

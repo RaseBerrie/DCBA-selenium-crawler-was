@@ -2,8 +2,8 @@ from main import app
 from flask_cors import CORS
 
 cors = CORS(app, resources={
-    r"/crawler/*": {"origin": "*"},
-    r"/data/*": {"origin": "*"}
+    r"/crawler/*": {"origins": "*"},
+    r"/data/*": {"origins": "*"}
     })
 
 if __name__ == "__main__":
