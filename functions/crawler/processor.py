@@ -6,24 +6,37 @@ import logging, os, sys, signal
 import functions.crawler.searcher as searcher
 import functions.database.utils as utils
 
-logging.basicConfig(filename='C:\\Users\\itf\\Documents\\selenium-search-api\\logs\\crawler_error.log', level=logging.WARNING,
-                    encoding="utf-8", format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
-############### PROCESS ###############
+# =====================================================
+# ==                 DISCRIPTION                     ==
+# =====================================================
+
+
+#   [ process_start 호출 후 진행 ]
+
+#   → process_function 각 args별로 프로세스 4개 실행
+#   → 각각의 process_function 내부에서 worker_function 호출
+#   → worker_function 내부에서 각각 wrapper_*_*** 함수 호출
+#   → 크롤러 진행 후 내부 프로세서 종료, 외부 프로세스 종료
+
+
+# =====================================================
+# ==                  PROCESSOR                      ==
+# =====================================================
+
 
 def process_function(func, items, process_count):
     chunk_size = (len(items) + process_count - 1) // process_count
     chunks = [items[i * chunk_size:(i + 1) * chunk_size] for i in range(process_count)]
 
-    # Create a shared queue for progress tracking
+    # === 프로세스 큐 세팅 ===
+
     manager = Manager()
     progress_queue = manager.Queue()
 
-    # Create and start processes
     processes = []
     for chunk in chunks:
         p = Process(target=worker_function, args=(func, chunk, progress_queue))
-        pbar.set_description(f'{func.__name__}: ')
         processes.append(p)
         p.start()
 
@@ -40,19 +53,31 @@ def process_function(func, items, process_count):
     signal.signal(signal.SIGTERM, signal_handler)
     signal.signal(signal.SIGINT, signal_handler)
 
+    process_name = func.__name__ 
     total_items = len(items)
+
+    # === 프로세스 완료 시 Pbar 업데이트 ===
+
     with tqdm(total=total_items) as pbar:
+        pbar.set_description(process_name)
         completed_items = 0
+
         while completed_items < total_items:
             completed_items += progress_queue.get()
             pbar.update(1)
+
+    # === 내부 프로세스 종료 ===
 
     for p in processes:
         p.join()
 
     terminate_children()
 
-############### MAIN ###############
+
+# =====================================================
+# ==                 PROCESS START                   ==
+# =====================================================
+
 
 def process_start(args):
     count = sum(1 for value in args.values() if value)
@@ -60,27 +85,49 @@ def process_start(args):
     if count > 0:
         count = max(1, int(12 / count))
 
+    # === 외부 프로세스 생성 ===
+
+    processes = []
     def start_searcher(key, count):
         if args[key]:
             ls = utils.create_task_list(key)
-            if key == "g_def":
-                p = Process(target=process_function, args=(wrapper_g_def, ls, count))
-            elif key == "b_def":
+            if key == "b_def":
                 p = Process(target=process_function, args=(wrapper_b_def, ls, count))
-            elif key == "g_git":
-                p = Process(target=process_function, args=(wrapper_g_git, ls, count))
+            elif key == "g_def":
+                p = Process(target=process_function, args=(wrapper_g_def, ls, count))
             elif key == "b_git":
                 p = Process(target=process_function, args=(wrapper_b_git, ls, count))
-
+            elif key == "g_git":
+                p = Process(target=process_function, args=(wrapper_g_git, ls, count))
+            
             p.start()
-            return 0
-
+            processes.append(p)
+           
     for key in args.keys():
         start_searcher(key, count)
 
+    # === 외부 프로세스 종료 ===
+
+    for p in processes:
+        p.join() # → 외부 프로세스가 종료되면 Client에 알려야 함
+
     return 0
 
-############### WRAPPER ###############
+
+# =====================================================
+# ==                   WRAPPERS                      ==
+# =====================================================
+
+
+def wrapper_b_def(item):
+    try:
+        searcher.bing_search(item)
+    except Exception as e:
+        if 'Critical' in str(e):
+            raise ValueError(f"Critical error encountered in b_def")
+        else:
+            logging.error(f"Error in bing_search: {e}")
+            utils.update_status('b', item, 'notstarted')
 
 def wrapper_g_def(item):
     try:
@@ -92,15 +139,15 @@ def wrapper_g_def(item):
             logging.error(f"Error in google_search: {e}")
             utils.update_status('g', item, 'notstarted')
 
-def wrapper_b_def(item):
+def wrapper_b_git(item):
     try:
-        searcher.bing_search(item)
+        searcher.bing_search(item, True)
     except Exception as e:
         if 'Critical' in str(e):
-            raise ValueError(f"Critical error encountered in b_def")
+            raise ValueError(f"Critical error encountered in b_git")
         else:
-            logging.error(f"Error in bing_search: {e}")
-            utils.update_status('b', item, 'notstarted', True)
+            logging.error(f"Error in bing_search (git): {e}")
+            utils.update_status('g', item, 'notstarted', True)
 
 def wrapper_g_git(item):
     try:
@@ -109,37 +156,26 @@ def wrapper_g_git(item):
         if 'Critical' in str(e):
             raise ValueError(f"Critical error encountered in g_git")
         else:
-            logging.error(f"Error in google_search with git: {e}")
+            logging.error(f"Error in google_search (git): {e}")
             utils.update_status('g', item, 'notstarted', True)
 
-def wrapper_b_git(item):
-    try:
-        searcher.bing_search(item, True)
-    except Exception as e:
-        if 'Critical' in str(e):
-            raise ValueError(f"Critical error encountered in b_git")
-        else:
-            logging.error(f"Error in bing_search with git: {e}")
-            utils.update_status('g', item, 'notstarted', True)
+# === 실행 함수 ===
 
 def worker_function(func, items, progress_queue):
     for item in items:
         try:
             func(item)
             progress_queue.put(1)
+
         except Exception as e:
             logging.error(f"Critical error encountered. Terminating process {current_process().name}.")
             this_index = items.index(item)
 
-            searchengine = "g"
-            git = False
-
-            if "g_git" in str(e): git = True
-            elif "b_def" in str(e): searchengine = "b"
-            elif "b_git" in str(e):
-                git = True
-                searchengine = "b"
-
+            searchengine, git = "g", False
+            
+            if "_git" in str(e): git = True
+            if "b_" in str(e): searchengine = "b"
+            
             notstarted_list = items[this_index:]
             for notstarted_url in notstarted_list:
                 utils.update_status(searchengine, notstarted_url, 'notstarted', git)

@@ -35,7 +35,8 @@ class StartCrawler(Resource):
         try:
             process_start(args)
             return jsonify({"status": "success"})
-        except:
+        except Exception as e:
+            print(e)
             return jsonify({"status": "fail"})
     
 @crawler.route('/keys')
@@ -45,7 +46,7 @@ class KeyControl(Resource):
         data = request.args.get('data')
 
         keys = []
-        data_list = data.split(r"\n")
+        data_list = data.split("\n")
         for text in data_list:
             text = text.strip()
             if check_url(text):

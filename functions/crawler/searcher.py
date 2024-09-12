@@ -4,7 +4,7 @@ from selenium.webdriver.common.by import By
 from selenium.common.exceptions import NoSuchElementException
 
 from functions.database.utils import save_to_database, update_status
-import base64, random, time, logging, traceback
+import base64, random, time, logging
 
 
 # =====================================================
@@ -17,6 +17,10 @@ logging.basicConfig(filename='C:\\Users\\itf\\Documents\\selenium-search-api\\lo
 
 def decode_base64(s):
     result = base64.urlsafe_b64decode(bytes(s + '====', 'UTF-8')).decode('UTF-8')
+    return result
+
+def no_escape_sequence(s):
+    result = s.translate(str.maketrans({"'": "\\'", '"': '\\"', '\\': '\\\\'}))
     return result
 
 
@@ -105,7 +109,7 @@ def google_search(original_url, git=False):
 
     try: searchfield = driver.find_element(By.XPATH, '//*[@id="APjFqb"]')
     except NoSuchElementException: raise ValueError(f"Critical error processing item: {original_url}")
-    except Exception: logging.error(traceback.format_exc())
+    except Exception: raise ValueError(f"Unknown minor error processing item: {original_url}")
     
     # === 검색어 전송 후 검색 진행 ===
     
@@ -119,8 +123,8 @@ def google_search(original_url, git=False):
     while True:
         try: resultfield = driver.find_element(By.ID, 'search')
         except NoSuchElementException: raise ValueError(f"Critical error processing item: {original_url}")
-        except Exception: logging.error(traceback.format_exc())
-        
+        except Exception: raise ValueError(f"Unknown minor error processing item: {original_url}")
+
         # === 검색 섹션: search ===
     
         try:
@@ -134,9 +138,7 @@ def google_search(original_url, git=False):
                 # === 링크에서 특수문자 삭제 ===
 
                 res_link_alt = linkpath.get_attribute('href')
-                res_link_alt = res_link_alt.translate(
-                    str.maketrans({"'": "\\'",
-                                   '"': '\\"'}))
+                res_link_alt = no_escape_sequence(res_link_alt)
                 
                 res_link.append(res_link_alt)
 
@@ -145,17 +147,14 @@ def google_search(original_url, git=False):
             idx = len(res_title)
             for i in range(idx):
                 res_title_alt = res_title[i].text
-                res_title_alt = res_title_alt.translate(
-                    str.maketrans({"'": "\\'",
-                                    '"': '\\"'}))
+                res_title_alt = no_escape_sequence(res_title_alt)
 
                 # === 컨텐츠에서 특수문자 삭제 ===
 
                 if i < len(res_content):
                     res_content_alt = res_content[i].text
-                    res_content_alt = res_content_alt.translate(
-                        str.maketrans({"'": "\\'",
-                                       '"': '\\"'}))
+                    res_content_alt = no_escape_sequence(res_content_alt)
+
                 else: res_content_alt = ''
                 
                 if git:
@@ -166,7 +165,7 @@ def google_search(original_url, git=False):
 
                 save_to_database("G", url, res_title_alt, res_link[i], res_content_alt, git, original_url)
                 
-        except Exception: logging.error(traceback.format_exc())
+        except Exception: raise ValueError(f"Stale element reference error processing item {original_url}")
 
         # === 검색 섹션: botstuff ===
         
@@ -182,15 +181,13 @@ def google_search(original_url, git=False):
                 # === 링크에서 특수문자 삭제 ===
 
                 res_link_alt = linkpath.get_attribute('href')
-                res_link_alt = res_link_alt.translate(
-                    str.maketrans({"'": "\\'",
-                                   '"': '\\"'}))
+                res_link_alt = no_escape_sequence(res_link_alt)
                 
                 res_link.append(res_link_alt)
 
             # === 제목에서 특수문자 삭제 ===
 
-            idx = len(res_title) - 2 # → 제외된 2건: <h3 aria_hidden="true"> <h3>다시 시도</h3> (항상 제외됨)
+            idx = len(res_title) - 2 # → 제외된 2개: <h3 aria_hidden="true"> <h3>다시 시도</h3> (항상 제외됨)
             for i in range(idx):
                 res_title_alt = res_title[i].text
                 res_title_alt = res_title_alt.replace("'", "\\'")
@@ -199,9 +196,8 @@ def google_search(original_url, git=False):
 
                 if i < len(res_content):
                     res_content_alt = res_content[i].text
-                    res_content_alt = res_content_alt.translate(
-                        str.maketrans({"'": "\\'",
-                                       '"': '\\"'}))
+                    res_content_alt = no_escape_sequence(res_content_alt)
+                    
                 else: res_content_alt = ''
 
                 if git:
@@ -211,7 +207,7 @@ def google_search(original_url, git=False):
                     url = tmp[2]
                 save_to_database("G", url, res_title_alt, res_link[i], res_content_alt, git, original_url)
 
-        except Exception: logging.error(traceback.format_exc())
+        except Exception: raise ValueError(f"Stale element reference error processing item {original_url}")
 
         # === 다음 페이지가 있으면 클릭 ===
 
@@ -245,7 +241,7 @@ def bing_search(original_url, git=False):
     try:
         searchfield = driver.find_element(By.XPATH, '//*[@id="sb_form_q"]')
     except NoSuchElementException:
-        raise ValueError(f"Critical error processing item: {original_url}")
+        raise ValueError(f"Element load error processing item: {original_url}")
 
     searchfield.send_keys(searchkey)
     time.sleep(PAUSE_SEC)
@@ -260,7 +256,7 @@ def bing_search(original_url, git=False):
         try:
             resultfield = driver.find_element(By.ID, 'b_results')
         except NoSuchElementException:
-            raise ValueError(f"Minor error processing item {original_url}")
+            raise ValueError(f"Element load error processing item: {original_url}")
         
         try:
             res_content = resultfield.find_elements(By.TAG_NAME, 'p')
@@ -274,15 +270,13 @@ def bing_search(original_url, git=False):
             idx = len(res_title)
             for i in range(idx):
                 res_title_alt = res_title[i]
-                res_title_alt = res_title_alt.replace("'", "\\'")
+                res_title_alt = no_escape_sequence(res_title_alt)
 
                 # === 컨텐츠에서 날짜 정보/특수문자 삭제 ===
 
                 if i < len(res_content):
                     res_content_alt = res_content[i].text
-                    res_content_alt = res_content_alt.translate(
-                        str.maketrans({"'": "\\'",
-                                       '"': '\\"'}))
+                    res_content_alt = no_escape_sequence(res_content_alt)
 
                     index = res_content_alt.find("일 · ")
                     if index > 0:
@@ -299,13 +293,12 @@ def bing_search(original_url, git=False):
 
                     try: res_link = decode_base64(tmp_b64)
                     except Exception:
-                        logging.error("BASE64 Padding error :" + tmp_b64)
+                        logging.error("ERROR - Base64 decoding error:" + tmp_b64)
+                        continue
 
                 # === BASE64 처리 끝난 링크에서 특수문자 삭제 ===
 
-                res_link_alt = res_link.translate(
-                str.maketrans({"'": "\\'",
-                               '"': '\\"'}))
+                res_link_alt = no_escape_sequence(res_link)
 
                 if git:
                     url = original_url
@@ -313,9 +306,9 @@ def bing_search(original_url, git=False):
                     tmp = res_link_alt.split('/')
                     url = tmp[2]
                 try: save_to_database("B", url, res_title_alt, res_link_alt, res_content_alt[1:], git, original_url)
-                except: logging.error(traceback.format_exc())
+                except: raise ValueError(f"Database save error processing item {original_url}")
         
-        except: logging.error(traceback.format_exc())
+        except: raise ValueError(f"Stale element reference error processing item {original_url}")
 
         # === 다음 페이지가 있으면 넘어감 ===
 

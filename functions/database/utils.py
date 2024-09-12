@@ -44,9 +44,6 @@ def insert_into_keys(comp, keys):
             
             for key in keys:
                 root_key_set.add(find_rootdomain(key))
-
-                query = f"INSERT IGNORE INTO req_keys(req_keys.key) VALUE('{key}')"
-                cur.execute(query)
             
             root_keys = list(root_key_set)
             for root_key in root_keys:
@@ -57,10 +54,13 @@ def insert_into_keys(comp, keys):
                 cur.execute(query)
 
                 for key in keys:
-                    if key in root_key:
+                    if key not in root_key:
                         query = f"INSERT IGNORE INTO list_subdomain(rootdomain, url, is_root) VALUE('{root_key}', '{key}', 0)"
                         cur.execute(query)
                     else: continue
+
+                    query = f"INSERT IGNORE INTO req_keys(req_keys.key) VALUE('{key}')"
+                    cur.execute(query)
 
             conn.commit()
             return 0
@@ -69,7 +69,7 @@ def create_task_list(task):
     task_list = []
     with database_connect() as conn:
         with conn.cursor() as cur:
-            cur.execute("SELECT req.key FROM req_keys req WHERE {0}='notstarted' and id > 1374".format(task))
+            cur.execute("SELECT req.key FROM req_keys req WHERE {0}='notstarted' and id > 1000".format(task))
             keys = cur.fetchmany(36)
             
             for key in keys:

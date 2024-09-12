@@ -48,7 +48,7 @@ def data_fining_seq_one():
             UPDATE  res_data_def
             SET     tags = 'public'
             WHERE   tags LIKE ''
-            AND     (res_url REGEXP "/[0-9]+/|[0-9]+$|notice_?view|/post/"
+            AND     (res_url REGEXP "/[0-9]+/|[0-9]+$|notice_?view|/post/|/press/"
             OR      res_url REGEXP '(\/|=)[0-9a-z-]+(\.(html))*\/*$')
             AND     res_url NOT LIKE '%download%'
             '''
@@ -93,9 +93,9 @@ def data_fining_seq_two():
             UPDATE      res_data_def
             SET         tags = 'admin'
             WHERE       tags = ''
-            AND         (res_title REGEXP '관리자|admin'
+            AND         ((res_title REGEXP '관리|admin' AND res_title NOT REGEXP '채용|실습|시험|모집|신입|검색[\s]*결과|소개|연수|기업|지침')
             OR          res_url REGEXP 'admin\/*$'
-            OR          res_content REGEXP '관리자');
+            OR          (res_content REGEXP '관리자' AND res_content NOT REGEXP '작성자|관리자(에게|를|가|는)|모집|채용|연수|교육|신청|기업'));
             '''
             cur.execute(query)
             
