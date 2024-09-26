@@ -47,7 +47,7 @@ def driver_setup(executor_link):
     options = webdriver.ChromeOptions()
     options.add_argument('--headless')
     options.add_argument('--incognito')
-    options.add_argument('--window-size=1920x1080')
+    options.add_argument('--window-size=1920,1080')
     
     options.add_argument('--user-agent={0}'.format(ua_list[ua_val]))
     options.add_argument("--disable-blink-features=AutomationControlled")
