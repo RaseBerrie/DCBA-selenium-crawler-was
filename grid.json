@@ -2,16 +2,15 @@
     "apps":
     [{
         "name": "selenium",
-        "watch": false,
         "script":"C:\\Program Files\\Common Files\\Oracle\\Java\\javapath\\java.exe",
         "args":
         [
-            "-jar", "C:\\Users\\itf\\Documents\\selenium-search-api\\assets\\selenium-server-4.20.0.jar", "standalone",
-            "--log-level", "warning",
-            "--session-timeout", "60",
+            "-jar", "C:\\Users\\itf\\Documents\\selenium-search-api\\assets\\selenium-server-4.25.0.jar", "standalone",
             "--log", "C:\\Users\\itf\\Documents\\selenium-search-api\\logs\\selenium_error.log",
+            "--log-level", "WARNING",
+            "--session-timeout", "60",
             "--structured-logs", "true",
-            "--tracing", "false"
+            "--selenium-manager", "true"
         ]
     }]
 }
