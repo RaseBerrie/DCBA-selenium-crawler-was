@@ -79,7 +79,7 @@ def process_function(func, items, process_count):
 # =====================================================
 
 
-def process_start(args):
+def process_start(args, key_dict):
     count = sum(1 for value in args.values() if value)
 
     if count > 0:
@@ -90,15 +90,14 @@ def process_start(args):
     processes = []
     def start_searcher(key, count):
         if args[key]:
-            ls = utils.create_task_list(key)
             if key == "b_def":
-                p = Process(target=process_function, args=(wrapper_b_def, ls, count))
+                p = Process(target=process_function, args=(wrapper_b_def, key_dict[key], count))
             elif key == "g_def":
-                p = Process(target=process_function, args=(wrapper_g_def, ls, count))
+                p = Process(target=process_function, args=(wrapper_g_def, key_dict[key], count))
             elif key == "b_git":
-                p = Process(target=process_function, args=(wrapper_b_git, ls, count))
+                p = Process(target=process_function, args=(wrapper_b_git, key_dict[key], count))
             elif key == "g_git":
-                p = Process(target=process_function, args=(wrapper_g_git, ls, count))
+                p = Process(target=process_function, args=(wrapper_g_git, key_dict[key], count))
             
             p.start()
             processes.append(p)

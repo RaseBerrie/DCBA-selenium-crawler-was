@@ -43,15 +43,15 @@ def driver_setup(executor_link):
                "Mozilla/5.0 (Windows NT 10.0; WOW64; rv:70.0) Gecko/20100101 Firefox/70.0"]
     
     # === 옵션 추가 ===
-
-    options = webdriver.ChromeOptions()
     
-    options.add_argument('headless')
-    options.add_argument('incognito')
-    options.add_argument('window-size=1920x1080')
-    options.add_argument('user-agent={0}'.format(ua_list[ua_val]))
+    options = webdriver.ChromeOptions()
+    options.add_argument('--headless')
+    options.add_argument('--incognito')
+    options.add_argument('--window-size=1920x1080')
+    
+    options.add_argument('--user-agent={0}'.format(ua_list[ua_val]))
     options.add_argument("--disable-blink-features=AutomationControlled")
-
+    
     # === 드라이버 실행 ===
 
     driver = webdriver.Remote(
@@ -254,61 +254,71 @@ def bing_search(original_url, git=False):
         # === 검색 섹션: b_results ===
 
         try:
-            resultfield = driver.find_element(By.ID, 'b_results')
+            resultfields = driver.find_elements(By.XPATH, '//*[@id="b_results"]/li')
         except NoSuchElementException:
             raise ValueError(f"Element load error processing item: {original_url}")
         
         try:
-            res_content = resultfield.find_elements(By.TAG_NAME, 'p')
-            titlefield = resultfield.find_elements(By.XPATH, '//h2//a')
-            res_title = []
-            
-            for title in titlefield:
-                res_title.append(title.text)
-                res_link = title.get_attribute('href')
-                                
-            idx = len(res_title)
-            for i in range(idx):
-                res_title_alt = res_title[i]
-                res_title_alt = no_escape_sequence(res_title_alt)
+            for resultfield in resultfields:
+                if resultfield.get_attribute('class') != "b_algo": break
 
+                time.sleep(PAUSE_SEC)
+                titlefield = resultfield.find_element(By.XPATH, '//h2//a')
+
+                res_title = no_escape_sequence(titlefield.text)
+                res_url = titlefield.get_attribute('href')
+                res_content = no_escape_sequence(resultfield.find_element(By.TAG_NAME, 'p').text)
+                
                 # === 컨텐츠에서 날짜 정보/특수문자 삭제 ===
 
-                if i < len(res_content):
-                    res_content_alt = res_content[i].text
-                    res_content_alt = no_escape_sequence(res_content_alt)
+                if " · " in res_content[:20]: res_content = res_content.split(" · ")[1]
+                elif res_content[0] == "웹":
+                    res_content = res_content[1:]
 
-                    index = res_content_alt.find("일 · ")
-                    if index > 0:
-                        index = index + 3
-                        res_content_alt = res_content_alt[index:]
+                # === 링크에서 BASE64 인코딩 해제 및 텍스트 삭제 ===
 
-                else: res_content_alt = ''
-
-                # === BASE64 인코딩 해제 후 저장 ===
-
-                if "aHR0c" in res_link:
-                    tmp = "aHR0c" + res_link.split("aHR0c")[1]
+                if "aHR0c" in res_url:
+                    tmp = "aHR0c" + res_url.split("aHR0c")[1]
                     tmp_b64 = tmp.split('&')[0]
 
-                    try: res_link = decode_base64(tmp_b64)
-                    except Exception:
-                        logging.error("ERROR - Base64 decoding error:" + tmp_b64)
-                        continue
+                    res_url = no_escape_sequence(decode_base64(tmp_b64))
+                    
+                if r"#:~:text=" in res_url:
+                    res_url = res_url.split(r"#:~:text=")[0]
 
-                # === BASE64 처리 끝난 링크에서 특수문자 삭제 ===
+                if git: url = original_url
+                else: url = res_url.split('/')[2]
 
-                res_link_alt = no_escape_sequence(res_link)
+                # === 캐시된 페이지 확인 ===
 
-                if git:
-                    url = original_url
-                else:
-                    tmp = res_link_alt.split('/')
-                    url = tmp[2]
-                try: save_to_database("B", url, res_title_alt, res_link_alt, res_content_alt[1:], git, original_url)
-                except: raise ValueError(f"Database save error processing item {original_url}")
+                cached_data = None
+                try:
+                    cache = driver.find_element(By.CLASS_NAME, 'trgr_icon')
+                    cache.click()
+
+                    cached_element = cache.find_element(By.XPATH, "..").find_element(By.TAG_NAME, "div").find_element(By.TAG_NAME, "a")
+                    cached_element.click()
+
+                    # === 새 탭에서 캐시된 페이지 소스 저장 ===
+
+                    last_tab = driver.window_handles[-1]
+                    driver.switch_to.window(window_name=last_tab)
+                    
+                    time.sleep(PAUSE_SEC)
+                    if "<!-- Apologies:Start -->" not in driver.page_source:
+                        cached_data = driver.page_source.encode('utf-8')
+                    driver.close()
+
+                    first_tab = driver.window_handles[0]
+                    driver.switch_to.window(window_name=first_tab)
+                except: pass
+
+                # === 데이터베이스에 저장 ===
+
+                try: save_to_database("B", url, res_title, res_url, res_content, git, original_url, cached_data=cached_data)
+                except Exception as e: raise ValueError(f"Database save error - {e}")
         
-        except: raise ValueError(f"Stale element reference error processing item {original_url}")
+        except Exception as e: raise ValueError(f"Value error processing item {original_url} - {e}")
 
         # === 다음 페이지가 있으면 넘어감 ===
 

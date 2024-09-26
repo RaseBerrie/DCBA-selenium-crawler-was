@@ -77,12 +77,13 @@ def create_task_list(task):
             
             for task_url in task_list:
                 cur.execute("UPDATE req_keys SET {0} = 'processing' WHERE req_keys.key = '{1}'".format(task, task_url))
+                cur.execute("UPDATE req_keys SET {0}_status = 'running' WHERE req_keys.key = '{1}'".format(task, task_url))
             
             conn.commit()
     return task_list
 
 def save_to_database(se, sd, title, link, content,
-                     git=False, original_url=None):
+                     git=False, original_url=None, cached_data=None):
     
     if "bing" in link or "github" in sd:
         return 0
@@ -92,7 +93,7 @@ def save_to_database(se, sd, title, link, content,
             subdomain = sd
             if ":" in subdomain: subdomain = subdomain.split(":")[0]
 
-            if git : query = 'INSERT INTO res_data_git'
+            if git: query = 'INSERT INTO res_data_git'
             else: query = 'INSERT INTO res_data_def'
 
             query = query + '''
@@ -102,13 +103,10 @@ def save_to_database(se, sd, title, link, content,
             
             try:
                 cur.execute(query)
-                conn.commit()
-
             except pymysql.MySQLError as e:
                 error_code, error_message = e.args
-                if error_code == 1062:
-                    pass
 
+                if error_code == 1062: pass
                 elif error_code == 1452:
                     rootdomain = find_rootdomain(subdomain)
                     query_sub = f'''INSERT INTO list_subdomain (rootdomain, url, is_root)
@@ -120,8 +118,6 @@ def save_to_database(se, sd, title, link, content,
                     try:
                         cur.execute(query_sub)
                         cur.execute(query)
-                        
-                        conn.commit()
                     except:
                         query_find_comp = f'''SELECT company FROM req_keys req 
                         JOIN list_subdomain sub ON sub.url = req.key
@@ -136,23 +132,30 @@ def save_to_database(se, sd, title, link, content,
                         cur.execute(query_root)
                         cur.execute(query_sub)
                         cur.execute(query)
-
-                        conn.commit()
                 else:
-                    logging.error(query) #→ 로깅 후 계속 진행
-                    pass
+                    raise ValueError(f"{error_message}")
+                
+            if cached_data is not None:
+                query = "INSERT IGNORE INTO res_data_cache (url, cache) VALUES (%s, %s)"
+                cur.execute(query, (link, cached_data, ))
+
+            conn.commit()
     return 0
 
 def update_status(se, url, status, git=False):
     with database_connect() as conn:
         with conn.cursor() as cur:
-            query = 'UPDATE req_keys req SET ' + se + '_'
-            if git:
-                    query += 'git'
-            else:
-                    query += 'def'
-            query += '= "' + status + '" '
-            query += 'WHERE req.key = "' + url + '";'
+            if git: column = se + '_git'
+            else: column = se + '_def'
+                    
+            query = 'UPDATE req_keys req SET ' + column + ' = "' + status + '" WHERE req.key = "' + url + '";'
+            cur.execute(query)
+
+            if status == 'notstarted':
+                query = 'UPDATE req_keys req SET ' + column + '_status = "killed" WHERE req.key = "' + url + '";'
+            elif status == 'finished':
+                query = 'UPDATE req_keys req SET ' + column + '_status = "done" WHERE req.key = "' + url + '";'
+
             cur.execute(query)
         conn.commit()
     return 0

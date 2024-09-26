@@ -1,6 +1,6 @@
 from main import *
 from functions.crawler.processor import process_start
-from functions.database.utils import insert_into_keys
+from functions.database.utils import insert_into_keys, create_task_list
 
 import json, io, re, csv
 
@@ -8,6 +8,7 @@ from flask import request, jsonify
 from flask_restx import Resource, Namespace
 
 crawler = Namespace('crawler')
+key_dict = dict()
 
 def new_csv_list(file_storage):
     result = []
@@ -32,9 +33,17 @@ def check_url(text:str):
 class StartCrawler(Resource):
     def get(self):
         args = json.loads(request.args.get('args'))
+
+        for key in args.keys():
+            if args[key]:
+                ls = create_task_list(key)
+                key_dict[key] = ls
+            else: key_dict[key] = list()
+
         try:
-            process_start(args)
+            process_start(args, key_dict)
             return jsonify({"status": "success"})
+        
         except Exception as e:
             print(e)
             return jsonify({"status": "fail"})
