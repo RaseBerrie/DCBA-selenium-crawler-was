@@ -1,20 +1,12 @@
-import pymysql, logging
+from main import db
+from functions.database.models import ResDefData, ResGitData, ResCacheData, ListComp, ListRoot, ListSub, ReqKeys
 
-logging.basicConfig(filename='C:\\Users\\itf\\Documents\\selenium-search-api\\logs\\crawler_error.log',
-                    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.ERROR)
-
-def database_connect():
-    conn = pymysql.connect(host='192.168.6.90',
-                           user='root',
-                           password='root',
-                           db='searchdb',
-                           charset='utf8mb4')
-    return conn
+from sqlalchemy.exc import IntegrityError
 
 def find_rootdomain(domain):
     if ":" in domain:
         tmp = domain.split(":")
-        domain = tmp[0] # 포트 번호 삭제
+        domain = tmp[0]
 
     found = 0
     tmp = domain.split(".")
@@ -36,126 +28,112 @@ def find_rootdomain(domain):
     return result
 
 def insert_into_keys(comp, keys):
+    comp_instance = ListComp(company=comp)
+    db.session.add(comp_instance)
+    
     root_key_set = set()
-    with database_connect() as conn:
-        with conn.cursor() as cur:
-            query = f"INSERT IGNORE INTO list_company(company) VALUE('{comp}')"
-            cur.execute(query)
-            
-            for key in keys:
-                root_key_set.add(find_rootdomain(key))
-            
-            root_keys = list(root_key_set)
-            for root_key in root_keys:
-                query = f"INSERT IGNORE INTO list_rootdomain(company, url) VALUE('{comp}', '{root_key}')"
-                cur.execute(query)
+    for key in keys:
+        root_key_set.add(find_rootdomain(key))
+    
+    root_keys = list(root_key_set)
+    for root_key in root_keys:
+        root_instance = ListRoot(company=comp_instance, url=root_key)
+        db.session.add(root_instance)
+        
+        subdomain_instance = ListSub(rootdomain=root_key, url=root_key, is_root=True)
+        db.session.add(subdomain_instance)
+        
+        for key in keys:
+            if key != root_key:
+                subdomain_instance = ListSub(rootdomain=root_key, url=key, is_root=False)
+                db.session.add(subdomain_instance)
 
-                query = f"INSERT IGNORE INTO list_subdomain(rootdomain, url, is_root) VALUE('{root_key}', '{root_key}', 1)"
-                cur.execute(query)
+            try:
+                req_key_instance = ReqKeys(key=key)
+                db.session.add(req_key_instance)
+            except IntegrityError:
+                db.session.rollback()
 
-                for key in keys:
-                    if key not in root_key:
-                        query = f"INSERT IGNORE INTO list_subdomain(rootdomain, url, is_root) VALUE('{root_key}', '{key}', 0)"
-                        cur.execute(query)
-                    else: continue
-
-                    query = f"INSERT IGNORE INTO req_keys(req_keys.key) VALUE('{key}')"
-                    cur.execute(query)
-
-            conn.commit()
-            return 0
+    db.session.commit()
+    return 0
 
 def create_task_list(task):
     task_list = []
-    with database_connect() as conn:
-        with conn.cursor() as cur:
-            cur.execute("SELECT req.key FROM req_keys req WHERE {0}='notstarted' and id > 1000".format(task))
-            keys = cur.fetchmany(36)
-            
-            for key in keys:
-                task_list.append(key[0])
-            
-            for task_url in task_list:
-                cur.execute("UPDATE req_keys SET {0} = 'processing' WHERE req_keys.key = '{1}'".format(task, task_url))
-                cur.execute("UPDATE req_keys SET {0}_status = 'running' WHERE req_keys.key = '{1}'".format(task, task_url))
-            
-            conn.commit()
+    keys = db.session.query(ReqKeys).filter(getattr(ReqKeys, task) == 'notstarted', ReqKeys.id > 1000).limit(36).all()
+    
+    for key in keys:
+        task_list.append(key.key)
+    
+    for task_url in task_list:
+        db.session.query(ReqKeys).filter_by(key=task_url).update({
+            task: 'processing', 
+            f"{task}_status": 'running'
+        })
+    
+    db.session.commit()
     return task_list
 
-def save_to_database(se, sd, title, link, content,
-                     git=False, original_url=None, cached_data=None):
-    
+def save_to_database(se, sd, title, link, content, git=False, original_url=None, cached_data=None):
     if "bing" in link or "github" in sd:
         return 0
 
-    with database_connect() as conn:
-        with conn.cursor() as cur:
-            subdomain = sd
-            if ":" in subdomain: subdomain = subdomain.split(":")[0]
-
-            if git: query = 'INSERT INTO res_data_git'
-            else: query = 'INSERT INTO res_data_def'
-
-            query = query + '''
-                    (searchengine, subdomain, res_title, res_url, res_content)
-                    VALUES('{0}', '{1}', '{2}', '{3}', '{4}'); 
-                    '''.format(se, subdomain, title, link, content)
+    subdomain = sd.split(":")[0] if ":" in sd else sd
+    
+    if git:
+        data_instance = ResGitData(searchengine=se, subdomain=subdomain,
+                                   res_title=title, res_url=link, res_content=content)
+    else:
+        data_instance = ResDefData(searchengine=se, subdomain=subdomain,
+                                   res_title=title, res_url=link, res_content=content)
+    
+    try:
+        db.session.add(data_instance)
+        db.session.commit()
+    except IntegrityError as e:
+        db.session.rollback()
+        if e.orig.args[0] == 1062:
+            return 0  # Ignore duplicates
+        elif e.orig.args[0] == 1452:
+            rootdomain = find_rootdomain(subdomain)
+            root_instance = ListRoot(url=rootdomain)
+            subdomain_instance = ListSub(rootdomain=rootdomain, url=subdomain, is_root=(rootdomain == subdomain))
             
-            try:
-                cur.execute(query)
-            except pymysql.MySQLError as e:
-                error_code, error_message = e.args
+            db.session.add(root_instance)
+            db.session.add(subdomain_instance)
+            db.session.commit()
 
-                if error_code == 1062: pass
-                elif error_code == 1452:
-                    rootdomain = find_rootdomain(subdomain)
-                    query_sub = f'''INSERT INTO list_subdomain (rootdomain, url, is_root)
-                    VALUES("{rootdomain}", "{subdomain}", '''
-
-                    if rootdomain == subdomain: query_sub += "1)"
-                    else: query_sub += "0)"
-
-                    try:
-                        cur.execute(query_sub)
-                        cur.execute(query)
-                    except:
-                        query_find_comp = f'''SELECT company FROM req_keys req 
-                        JOIN list_subdomain sub ON sub.url = req.key
-                        JOIN list_rootdomain root ON root.url = sub.rootdomain
-                        WHERE req.key = "{original_url}"'''
-                        cur.execute(query_find_comp)
-
-                        company = cur.fetchone()
-                        query_root = f'''INSERT INTO list_rootdomain (company, url)
-                        VALUES ("{company[0]}", "{rootdomain}")'''
-                        
-                        cur.execute(query_root)
-                        cur.execute(query_sub)
-                        cur.execute(query)
-                else:
-                    raise ValueError(f"{error_message}")
-                
-            if cached_data is not None:
-                query = "INSERT IGNORE INTO res_data_cache (url, cache) VALUES (%s, %s)"
-                cur.execute(query, (link, cached_data, ))
-
-            conn.commit()
+            if original_url:
+                company = db.session.query(ReqKeys).join(ListSub, ListSub.url == ReqKeys.key).join(ListRoot, ListRoot.url == ListSub.rootdomain).filter(ReqKeys.key == original_url).first()
+                if company:
+                    new_root = ListRoot(company=company.company, url=rootdomain)
+                    db.session.add(new_root)
+                    db.session.commit()
+            
+            db.session.add(data_instance)
+            db.session.commit()
+    
+    if cached_data:
+        cache_instance = ResCacheData(url=link, cache=cached_data)
+        db.session.add(cache_instance)
+        db.session.commit()
+    
     return 0
 
 def update_status(se, url, status, git=False):
-    with database_connect() as conn:
-        with conn.cursor() as cur:
-            if git: column = se + '_git'
-            else: column = se + '_def'
-                    
-            query = 'UPDATE req_keys req SET ' + column + ' = "' + status + '" WHERE req.key = "' + url + '";'
-            cur.execute(query)
-
-            if status == 'notstarted':
-                query = 'UPDATE req_keys req SET ' + column + '_status = "killed" WHERE req.key = "' + url + '";'
-            elif status == 'finished':
-                query = 'UPDATE req_keys req SET ' + column + '_status = "done" WHERE req.key = "' + url + '";'
-
-            cur.execute(query)
-        conn.commit()
+    column = f"{se}_git" if git else f"{se}_def"
+    
+    db.session.query(ReqKeys).filter_by(key=url).update({
+        column: status
+    })
+    
+    if status == 'notstarted':
+        db.session.query(ReqKeys).filter_by(key=url).update({
+            f"{column}_status": 'killed'
+        })
+    elif status == 'finished':
+        db.session.query(ReqKeys).filter_by(key=url).update({
+            f"{column}_status": 'done'
+        })
+    
+    db.session.commit()
     return 0

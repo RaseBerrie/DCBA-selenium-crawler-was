@@ -46,7 +46,7 @@ def data_fining_seq_two():
             query = r'''
             UPDATE  res_data_def
             SET     tags = 'expose'
-            WHERE   tags = ''
+            WHERE   (tags = '' or tags = 'public')
             AND     (res_title REGEXP '시스템.메.지|Apache'
             OR      res_url REGEXP 'editor|plugin/|namo|dext|CVS|root|[Rr]epository|changelog|jsessionid'
             OR      res_content REGEXP '시스템.메.지|워드프레스');
