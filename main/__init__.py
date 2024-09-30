@@ -14,11 +14,9 @@ app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
 api = Api(app)
 db = SQLAlchemy(app)
 
-def create_app():
-    from main.crawler import crawler
-    from main.data import data
+from main.crawler import crawler
+from main.data import data
 
-    api.add_namespace(crawler)
-    api.add_namespace(data)
+api.add_namespace(crawler)
+api.add_namespace(data)
 
-    return app

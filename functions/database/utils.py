@@ -28,47 +28,78 @@ def find_rootdomain(domain):
     return result
 
 def insert_into_keys(comp, keys):
+    # ListComp 객체 생성 및 추가
     comp_instance = ListComp(company=comp)
-    db.session.add(comp_instance)
-    
-    root_key_set = set()
-    for key in keys:
-        root_key_set.add(find_rootdomain(key))
-    
-    root_keys = list(root_key_set)
+    try:
+        db.session.add(comp_instance)
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        comp_instance = db.session.query(ListComp).filter(ListComp.company == comp).first()
+
+    # 중복되지 않는 루트 도메인 추출
+    root_keys = {find_rootdomain(key) for key in keys}
+
+    # ListRoot와 ListSub에 중복 삽입 방지 로직 추가
+    existing_root_keys = db.session.query(ListRoot.url).filter(ListRoot.url.in_(root_keys)).all()
+    existing_root_keys = {result[0] for result in existing_root_keys}
+
+    # 새로운 루트 도메인들만 추가
+    new_root_keys = root_keys - existing_root_keys
+
+    if new_root_keys:
+        root_instances = [ListRoot(company=comp, url=root_key) for root_key in new_root_keys]
+        root_instances_for_subdomain = [ListSub(rootdomain=root_key, url=root_key, is_root=True) for root_key in new_root_keys]
+
+        try:
+            db.session.bulk_save_objects(root_instances)
+            db.session.bulk_save_objects(root_instances_for_subdomain)
+            db.session.commit()
+        except IntegrityError:
+            db.session.rollback()
+
+    # 서브도메인 및 요청 키 추가
+    subdomain_instances = []
+    req_key_instances = []
+
+    # 이미 있는 서브 도메인 필터링
     for root_key in root_keys:
-        root_instance = ListRoot(company=comp_instance, url=root_key)
-        db.session.add(root_instance)
-        
-        subdomain_instance = ListSub(rootdomain=root_key, url=root_key, is_root=True)
-        db.session.add(subdomain_instance)
-        
         for key in keys:
             if key != root_key:
-                subdomain_instance = ListSub(rootdomain=root_key, url=key, is_root=False)
-                db.session.add(subdomain_instance)
+                subdomain_instances.append(ListSub(rootdomain=root_key, url=key, is_root=False))
+            req_key_instances.append(ReqKeys(key=key))
 
-            try:
-                req_key_instance = ReqKeys(key=key)
-                db.session.add(req_key_instance)
-            except IntegrityError:
-                db.session.rollback()
+    # 중복된 ReqKeys 처리
+    existing_keys = db.session.query(ReqKeys.key).filter(ReqKeys.key.in_(keys)).all()
+    existing_keys_set = {result[0] for result in existing_keys}
+    
+    # 새로운 ReqKeys만 추가
+    new_req_key_instances = [ReqKeys(key=key) for key in keys if key not in existing_keys_set]
 
-    db.session.commit()
+    try:
+        if subdomain_instances:
+            db.session.bulk_save_objects(subdomain_instances)
+        if new_req_key_instances:
+            db.session.bulk_save_objects(new_req_key_instances)
+        
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+
     return 0
 
 def create_task_list(task):
     task_list = []
-    keys = db.session.query(ReqKeys).filter(getattr(ReqKeys, task) == 'notstarted', ReqKeys.id > 1000).limit(36).all()
-    
-    for key in keys:
-        task_list.append(key.key)
-    
-    for task_url in task_list:
-        db.session.query(ReqKeys).filter_by(key=task_url).update({
-            task: 'processing', 
-            f"{task}_status": 'running'
-        })
+    keys = db.session.query(ReqKeys.key).filter(
+        getattr(ReqKeys, task) == 'notstarted',
+        ReqKeys.id > 1000
+    ).limit(36).all()
+
+    task_list = [key[0] for key in keys]
+    db.session.query(ReqKeys).filter(ReqKeys.key.in_(task_list)).update({
+        task: 'processing',
+        f"{task}_status": 'running'
+    }, synchronize_session=False)
     
     db.session.commit()
     return task_list
@@ -78,22 +109,22 @@ def save_to_database(se, sd, title, link, content, git=False, original_url=None,
         return 0
 
     subdomain = sd.split(":")[0] if ":" in sd else sd
-    
-    if git:
-        data_instance = ResGitData(searchengine=se, subdomain=subdomain,
-                                   res_title=title, res_url=link, res_content=content)
-    else:
-        data_instance = ResDefData(searchengine=se, subdomain=subdomain,
-                                   res_title=title, res_url=link, res_content=content)
+
+    data_instance = ResGitData if git else ResDefData
+    new_data = data_instance(
+        searchengine=se, subdomain=subdomain, res_title=title, res_url=link, res_content=content
+    )
     
     try:
-        db.session.add(data_instance)
+        db.session.add(new_data)
         db.session.commit()
     except IntegrityError as e:
         db.session.rollback()
-        if e.orig.args[0] == 1062:
-            return 0  # Ignore duplicates
-        elif e.orig.args[0] == 1452:
+        error_code = e.orig.args[0]
+        
+        if error_code == 1062: 
+            return 0
+        elif error_code == 1452: 
             rootdomain = find_rootdomain(subdomain)
             root_instance = ListRoot(url=rootdomain)
             subdomain_instance = ListSub(rootdomain=rootdomain, url=subdomain, is_root=(rootdomain == subdomain))
@@ -103,15 +134,17 @@ def save_to_database(se, sd, title, link, content, git=False, original_url=None,
             db.session.commit()
 
             if original_url:
-                company = db.session.query(ReqKeys).join(ListSub, ListSub.url == ReqKeys.key).join(ListRoot, ListRoot.url == ListSub.rootdomain).filter(ReqKeys.key == original_url).first()
+                company = db.session.query(ReqKeys).join(ListSub, ListSub.url == ReqKeys.key)\
+                                                   .join(ListRoot, ListRoot.url == ListSub.rootdomain)\
+                                                   .filter(ReqKeys.key == original_url).first()
                 if company:
                     new_root = ListRoot(company=company.company, url=rootdomain)
                     db.session.add(new_root)
                     db.session.commit()
             
-            db.session.add(data_instance)
+            db.session.add(new_data)
             db.session.commit()
-    
+
     if cached_data:
         cache_instance = ResCacheData(url=link, cache=cached_data)
         db.session.add(cache_instance)
