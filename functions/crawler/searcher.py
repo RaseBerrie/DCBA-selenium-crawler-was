@@ -45,12 +45,14 @@ def driver_setup(executor_link):
     # === 옵션 추가 ===
     
     options = webdriver.ChromeOptions()
-    options.add_argument('--headless')
-    options.add_argument('--incognito')
-    options.add_argument('--window-size=1920x1080')
+    options.add_argument('--headless=new')
+    options.add_argument('--window-size=1920,1080')
+    options.add_argument("--window-position=-10000,-10000")
     
     options.add_argument('--user-agent={0}'.format(ua_list[ua_val]))
-    options.add_argument("--disable-blink-features=AutomationControlled")
+    options.add_argument('--disable-features=OptimizationGuideModelDownloading,OptimizationHintsFetching,OptimizationTargetPrediction,OptimizationHints')
+    options.add_argument('--disable-blink-features=AutomationControlled')
+    options.add_argument('--disable-search-engine-choice-screen')
     
     # === 드라이버 실행 ===
 
@@ -163,7 +165,7 @@ def google_search(original_url, git=False):
                     tmp = res_link[i].split('/')
                     url = tmp[2]
 
-                save_to_database("G", url, res_title_alt, res_link[i], res_content_alt, git, original_url)
+                save_to_database('G', url, res_title_alt, res_link[i], res_content_alt, git, original_url)
                 
         except Exception: raise ValueError(f"Stale element reference error processing item {original_url}")
 
@@ -205,7 +207,7 @@ def google_search(original_url, git=False):
                 else:
                     tmp = res_link[i].split('/')
                     url = tmp[2]
-                save_to_database("G", url, res_title_alt, res_link[i], res_content_alt, git, original_url)
+                save_to_database('G', url, res_title_alt, res_link[i], res_content_alt, git, original_url)
 
         except Exception: raise ValueError(f"Stale element reference error processing item {original_url}")
 
@@ -216,7 +218,7 @@ def google_search(original_url, git=False):
         except: break
 
     driver.quit()
-    update_status('g', original_url, 'finished', git)
+    update_status('G', original_url, 'finished', git)
 
 
 # =====================================================
@@ -248,7 +250,7 @@ def bing_search(original_url, git=False):
     searchfield.send_keys(Keys.ENTER)
     
     while True:
-        time.sleep(PAUSE_SEC * 2)
+        time.sleep(PAUSE_SEC)
         scrolltoend_bing(driver)
 
         # === 검색 섹션: b_results ===
@@ -262,12 +264,11 @@ def bing_search(original_url, git=False):
             for resultfield in resultfields:
                 if resultfield.get_attribute('class') != "b_algo": break
 
-                time.sleep(PAUSE_SEC)
                 titlefield = resultfield.find_element(By.XPATH, '//h2//a')
-
+                res_content = no_escape_sequence(resultfield.find_element(By.XPATH, '//div[2]//p').text)
+                
                 res_title = no_escape_sequence(titlefield.text)
                 res_url = titlefield.get_attribute('href')
-                res_content = no_escape_sequence(resultfield.find_element(By.TAG_NAME, 'p').text)
                 
                 # === 컨텐츠에서 날짜 정보/특수문자 삭제 ===
 
@@ -292,37 +293,37 @@ def bing_search(original_url, git=False):
                 # === 캐시된 페이지 확인 ===
 
                 cached_data = None
-                try:
-                    cache = driver.find_element(By.CLASS_NAME, 'trgr_icon')
-                    cache.click()
+                if not git:
+                    try:
+                        cache = driver.find_element(By.CLASS_NAME, 'trgr_icon')
+                        cache.click()
 
-                    cached_element = cache.find_element(By.XPATH, "..").find_element(By.TAG_NAME, "div").find_element(By.TAG_NAME, "a")
-                    cached_element.click()
+                        cached_element = cache.find_element(By.XPATH, "..").find_element(By.TAG_NAME, "div").find_element(By.TAG_NAME, "a")
+                        cached_element.click()
 
-                    # === 새 탭에서 캐시된 페이지 소스 저장 ===
+                        # === 새 탭에서 캐시된 페이지 소스 저장 ===
 
-                    last_tab = driver.window_handles[-1]
-                    driver.switch_to.window(window_name=last_tab)
-                    
-                    time.sleep(PAUSE_SEC)
-                    if "<!-- Apologies:Start -->" not in driver.page_source:
-                        cached_data = driver.page_source.encode('utf-8')
-                    driver.close()
+                        last_tab = driver.window_handles[-1]
+                        driver.switch_to.window(window_name=last_tab)
+                        
+                        time.sleep(PAUSE_SEC)
+                        if "<!-- Apologies:Start -->" not in driver.page_source:
+                            cached_data = driver.page_source.encode('utf-8')
+                        driver.close()
 
-                    first_tab = driver.window_handles[0]
-                    driver.switch_to.window(window_name=first_tab)
-                except: pass
+                        first_tab = driver.window_handles[0]
+                        driver.switch_to.window(window_name=first_tab)
+                    except: pass
 
                 # === 데이터베이스에 저장 ===
 
-                try: save_to_database("B", url, res_title, res_url, res_content, git, original_url, cached_data=cached_data)
+                try: save_to_database('B', url, res_title, res_url, res_content, git, original_url, cached_data=cached_data)
                 except Exception as e: raise ValueError(f"Database save error - {e}")
         
         except Exception as e: raise ValueError(f"Value error processing item {original_url} - {e}")
 
         # === 다음 페이지가 있으면 넘어감 ===
 
-        time.sleep(PAUSE_SEC)
         try:
             nextpage = driver.find_element(By.CLASS_NAME, 'sw_next').find_element(By.XPATH, '..')
             tmp_link = nextpage.get_attribute('href')
@@ -336,4 +337,4 @@ def bing_search(original_url, git=False):
         except: break
 
     driver.quit()
-    update_status('b', original_url, 'finished', git)
+    update_status('B', original_url, 'finished', git)

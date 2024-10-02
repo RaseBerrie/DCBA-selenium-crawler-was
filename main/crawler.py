@@ -2,7 +2,8 @@ from main import *
 from functions.crawler.processor import process_start
 from functions.database.utils import insert_into_keys, create_task_list
 
-import json, io, re, csv
+import json, re
+import pandas as pd
 
 from flask import request, jsonify
 from flask_restx import Resource, Namespace
@@ -11,13 +12,13 @@ crawler = Namespace('crawler')
 key_dict = dict()
 
 def new_csv_list(file_storage):
-    result = []
-    with io.StringIO(file_storage.read().decode('utf-8-sig')) as file:
-        file.seek(0)
-        reader = csv.reader(file)
-        for line in reader:
-            result.append(line[0])
-    return result
+    try:
+        df = pd.read_csv(file_storage)
+    except:
+        df = pd.read_excel(file_storage)
+    
+    result = df.values.tolist()
+    return [child[0] for child in result if child]
 
 def check_url(text:str):
     url_reg = r"[-a-zA-Z0-9@:%._\+~#=]{2,256}\.[a-z]{2,6}\b([-a-zA-Z0-9@:%_\+.~#?&\/\/=]*)"
@@ -60,9 +61,13 @@ class KeyControl(Resource):
             text = text.strip()
             if check_url(text):
                 keys.append(text)
-
-        insert_into_keys(comp, keys)
-        return jsonify({"comp": comp, "data": keys})
+        try:
+            insert_into_keys(comp, keys)
+            return jsonify({"status": "success"})
+        
+        except Exception as e:
+            print(e)
+            return jsonify({"status": "fail"})
         
     def post(self):
         comp = request.form['comp']
@@ -74,5 +79,10 @@ class KeyControl(Resource):
             if check_url(text):
                 keys.append(text)
 
-        insert_into_keys(comp, keys)
-        return jsonify({"comp": comp, "data": keys})
+        try:
+            insert_into_keys(comp, keys)
+            return jsonify({"status": "success"})
+        
+        except Exception as e:
+            print(e)
+            return jsonify({"status": "fail"})

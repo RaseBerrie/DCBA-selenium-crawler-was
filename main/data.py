@@ -2,7 +2,7 @@ from main import *
 from functions.database import datafine
 from functions.parser import pdf
 
-from flask import request, jsonify
+from flask import jsonify
 from flask_restx import Resource, Namespace
 
 data = Namespace('data')

@@ -2,7 +2,6 @@ from multiprocessing import Process, Manager, current_process
 from tqdm import tqdm
 
 import logging, os, sys, signal
-
 import functions.crawler.searcher as searcher
 import functions.database.utils as utils
 
@@ -26,6 +25,8 @@ import functions.database.utils as utils
 
 
 def process_function(func, items, process_count):
+    from app import app
+    
     chunk_size = (len(items) + process_count - 1) // process_count
     chunks = [items[i * chunk_size:(i + 1) * chunk_size] for i in range(process_count)]
 
@@ -38,7 +39,8 @@ def process_function(func, items, process_count):
     for chunk in chunks:
         p = Process(target=worker_function, args=(func, chunk, progress_queue))
         processes.append(p)
-        p.start()
+        with app.app_context():
+            p.start()
 
     def terminate_children():
         for p in processes:
@@ -80,8 +82,9 @@ def process_function(func, items, process_count):
 
 
 def process_start(args, key_dict):
+    from app import app
+    
     count = sum(1 for value in args.values() if value)
-
     if count > 0:
         count = max(1, int(12 / count))
 
@@ -99,8 +102,9 @@ def process_start(args, key_dict):
             elif key == "g_git":
                 p = Process(target=process_function, args=(wrapper_g_git, key_dict[key], count))
             
-            p.start()
-            processes.append(p)
+            with app.app_context():
+                p.start()
+                processes.append(p)
            
     for key in args.keys():
         start_searcher(key, count)
@@ -146,7 +150,7 @@ def wrapper_b_git(item):
             raise ValueError(f"Critical error encountered in b_git")
         else:
             logging.error(f"Error in bing_search (git): {e}")
-            utils.update_status('g', item, 'notstarted', True)
+            utils.update_status('b', item, 'notstarted', True)
 
 def wrapper_g_git(item):
     try:
